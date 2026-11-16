@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.im.server.mapper.ImConversationMapper">
+
+    <resultMap type="ImConversation" id="ConversationResult">
+        <id property="convId" column="conv_id"/>
+        <result property="userAId" column="user_a_id"/>
+        <result property="userBId" column="user_b_id"/>
+        <result property="lastMsgId" column="last_msg_id"/>
+        <result property="lastMsgTime" column="last_msg_time"/>
+        <result property="relatedProductId" column="related_product_id"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="peerId" column="peer_id"/>
+        <result property="peerNickName" column="peer_nick_name"/>
+        <result property="peerAvatar" column="peer_avatar"/>
+        <result property="lastContent" column="last_content"/>
+        <result property="lastType" column="last_type"/>
+        <result property="productTitle" column="product_title"/>
+        <result property="productCover" column="product_cover"/>
+        <result property="productPrice" column="product_price"/>
+    </resultMap>
+
+    <select id="selectConversationListByUserId" resultMap="ConversationResult">
+        SELECT
+            c.conv_id,
+            c.user_a_id,
+            c.user_b_id,
+            c.last_msg_id,
+            c.last_msg_time,
+            c.related_product_id,
+            c.tenant_id,
+            CASE WHEN c.user_a_id = #{userId} THEN c.user_b_id ELSE c.user_a_id END AS peer_id,
+            CASE WHEN c.user_a_id = #{userId} THEN ub.nick_name ELSE ua.nick_name END AS peer_nick_name,
+            CASE WHEN c.user_a_id = #{userId} THEN ub.avatar ELSE ua.avatar END AS peer_avatar,
+            (SELECT m.content FROM im_message m WHERE m.msg_id = c.last_msg_id) AS last_content,
+            (SELECT m.type FROM im_message m WHERE m.msg_id = c.last_msg_id) AS last_type,
+            p.title AS product_title,
+            p.cover AS product_cover,
+            p.price AS product_price
+        FROM im_conversation c
+        LEFT JOIN sys_user ua ON c.user_a_id = ua.user_id
+        LEFT JOIN sys_user ub ON c.user_b_id = ub.user_id
+        LEFT JOIN product p ON c.related_product_id = p.product_id
+        WHERE c.user_a_id = #{userId} OR c.user_b_id = #{userId}
+        <if test="tenantId != null">AND c.tenant_id = #{tenantId}</if>
+        ORDER BY c.last_msg_time DESC
+    </select>
+
+    <select id="selectConversationByUsers" resultMap="ConversationResult">
+        SELECT conv_id FROM im_conversation WHERE user_a_id = #{userAId} AND user_b_id = #{userBId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </select>
+
+    <select id="selectConversationByConvId" resultMap="ConversationResult">
+        SELECT conv_id, user_a_id, user_b_id, last_msg_id, last_msg_time, related_product_id, tenant_id
+        FROM im_conversation WHERE conv_id = #{convId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </select>
+
+    <insert id="insertConversation" parameterType="ImConversation" useGeneratedKeys="true" keyProperty="convId">
+        INSERT INTO im_conversation (user_a_id, user_b_id, related_product_id, last_msg_time, create_time, update_time
+        <if test="tenantId != null">, tenant_id</if>)
+        VALUES (#{userAId}, #{userBId}, #{relatedProductId}, sysdate(), sysdate(), sysdate()
+        <if test="tenantId != null">, #{tenantId}</if>)
+    </insert>
+
+    <update id="updateLastMessage">
+        UPDATE im_conversation SET last_msg_id = #{lastMsgId}, last_msg_time = sysdate(), update_time = sysdate()
+        WHERE conv_id = #{convId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+</mapper>

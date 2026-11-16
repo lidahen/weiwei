@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.product.server.mapper.UserRelationMapper">
+
+    <select id="countFollows" resultType="Long">
+        SELECT COUNT(*) FROM user_relation WHERE user_id = #{userId}
+    </select>
+
+    <select id="countFans" resultType="Long">
+        SELECT COUNT(*) FROM user_relation WHERE target_user_id = #{userId}
+    </select>
+
+    <select id="selectRelation" resultType="map">
+        SELECT 1 FROM user_relation WHERE user_id = #{userId} AND target_user_id = #{targetUserId}
+    </select>
+
+    <insert id="insertRelation">
+        INSERT INTO user_relation (user_id, target_user_id, create_time) VALUES (#{userId}, #{targetUserId}, NOW())
+    </insert>
+
+    <delete id="deleteRelation">
+        DELETE FROM user_relation WHERE user_id = #{userId} AND target_user_id = #{targetUserId}
+    </delete>
+
+    <select id="selectFollowList" resultType="map">
+        SELECT u.user_id, u.nick_name, u.avatar, r.create_time, 1 AS followed
+        FROM user_relation r
+        JOIN sys_user u ON r.target_user_id = u.user_id
+        WHERE r.user_id = #{userId}
+        ORDER BY r.create_time DESC
+    </select>
+
+    <select id="selectFollowedIds" resultType="long">
+        SELECT target_user_id FROM user_relation WHERE user_id = #{userId}
+    </select>
+
+    <select id="selectFanList" resultType="map">
+        SELECT u.user_id, u.nick_name, u.avatar, r.create_time,
+               (SELECT 1 FROM user_relation WHERE user_id = #{userId} AND target_user_id = u.user_id) AS followed
+        FROM user_relation r
+        JOIN sys_user u ON r.user_id = u.user_id
+        WHERE r.target_user_id = #{userId}
+        ORDER BY r.create_time DESC
+    </select>
+
+</mapper>

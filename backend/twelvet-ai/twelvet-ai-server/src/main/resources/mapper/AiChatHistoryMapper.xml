@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.ai.server.mapper.AiChatHistoryMapper">
+
+    <resultMap type="com.twelvet.ai.api.domain.AiChatHistory" id="AiChatHistoryResult">
+        <result property="msgId" column="msg_id"/>
+        <result property="knowledgeId" column="knowledge_id"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="role" column="role"/>
+        <result property="content" column="content"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <sql id="selectAiChatHistoryVo">
+        select msg_id, knowledge_id, session_id, role, content, create_by, create_time
+        from ai_chat_history
+    </sql>
+
+    <select id="selectAiChatHistoryById" parameterType="Long" resultMap="AiChatHistoryResult">
+        <include refid="selectAiChatHistoryVo"/>
+        where msg_id = #{msgId}
+    </select>
+
+    <select id="selectAiChatHistoryList" parameterType="com.twelvet.ai.api.domain.AiChatHistory" resultMap="AiChatHistoryResult">
+        <include refid="selectAiChatHistoryVo"/>
+        <where>
+            <if test="knowledgeId != null">
+                AND knowledge_id = #{knowledgeId}
+            </if>
+            <if test="sessionId != null and sessionId != ''">
+                AND session_id = #{sessionId}
+            </if>
+            <if test="role != null and role != ''">
+                AND role = #{role}
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <select id="selectRecentHistoryByKnowledgeId" resultMap="AiChatHistoryResult">
+        <include refid="selectAiChatHistoryVo"/>
+        where knowledge_id = #{knowledgeId}
+        order by create_time desc
+        limit #{limit}
+    </select>
+
+    <insert id="insertAiChatHistory" parameterType="com.twelvet.ai.api.domain.AiChatHistory" useGeneratedKeys="true" keyProperty="msgId">
+        insert into ai_chat_history
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="knowledgeId != null">knowledge_id,</if>
+            <if test="sessionId != null">session_id,</if>
+            <if test="role != null and role != ''">role,</if>
+            <if test="content != null">content,</if>
+            <if test="createBy != null">create_by,</if>
+            create_time
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="knowledgeId != null">#{knowledgeId},</if>
+            <if test="sessionId != null">#{sessionId},</if>
+            <if test="role != null and role != ''">#{role},</if>
+            <if test="content != null">#{content},</if>
+            <if test="createBy != null">#{createBy},</if>
+            sysdate()
+        </trim>
+    </insert>
+
+    <delete id="deleteAiChatHistoryByKnowledgeId" parameterType="Long">
+        delete from ai_chat_history where knowledge_id = #{knowledgeId}
+    </delete>
+
+</mapper>

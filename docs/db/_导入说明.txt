@@ -1,0 +1,103 @@
+MySQL 导出说明
+================================================
+导出时间：2026-11-03 17:35
+源库：twelvet-fast（MySQL 8.0.37，Windows，127.0.0.1:3306）
+文件：twelvet-fast_2026-11-03.sql（920 KB，120 张表，其中 72 张有数据）
+
+这是本仓库**当前唯一推荐的初始化基线**，取代 2026-10-21 那份（107 表）。
+相比上一版，本次把基线之后新增的全部模块都包含进来了，因此新环境**导入这一个
+文件即可**，不再需要逐个执行增量脚本：
+
+  交换广场 7 表 · 结算账本 5 表（seller_account / settlement_order /
+  seller_balance_flow / trade_withdraw / settlement_recon_diff）·
+  漏斗事件 1 表 · Agent 长期记忆 1 表 · trade_pay.biz_type 列与回填 ·
+  退款售后表结构 · 互助退款对账定时任务 · 菜单与权限对齐
+
+变化明细（相对 10-21 基线）：
+  +14 表：ai_user_memory、funnel_event、seller_account、seller_balance_flow、
+          settlement_order、settlement_recon_diff、trade_withdraw_legacy_baseline、
+          twelve_exchange_item、twelve_exchange_match_push、twelve_exchange_offer、
+          twelve_exchange_order、twelve_exchange_order_log、twelve_exchange_pickup_code、
+          twelve_exchange_review
+  -1 表：feed_report（已改名并入 report）
+
+表清单与各行数据行数见同目录 _表清单与行数.txt。
+
+⚠️ 本文件**不含 CREATE DATABASE / USE 语句**（导出时未加 --databases），
+因此必须先手工建库，再显式指定库名导入。
+
+导出命令
+------------------------------------------------
+mysqldump -uroot -p -h127.0.0.1 -P3306 \
+  --default-character-set=utf8mb4 --single-transaction --quick --hex-blob \
+  --routines --triggers --events --add-drop-table twelvet-fast \
+  > docs/db/twelvet-fast_2026-11-03.sql
+
+参数说明：
+  --single-transaction  一致性快照，不锁表（InnoDB），导出期间业务可继续写入
+  --hex-blob            BLOB/二进制字段以十六进制写出，避免编码损坏
+  --routines/triggers/events  一并导出存储过程、触发器、定时事件
+  --add-drop-table      每条 CREATE TABLE 前带 DROP TABLE IF EXISTS，可重复导入
+
+导入命令（Windows / Git Bash）
+------------------------------------------------
+# 步骤一：先建库（文件里没有 CREATE DATABASE）
+mysql -uroot -p -h127.0.0.1 -P3306 \
+  -e "CREATE DATABASE IF NOT EXISTS \`twelvet-fast\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# 步骤二：导入到该库 —— 一步到位，无需再执行任何增量脚本
+mysql -uroot -p -h127.0.0.1 -P3306 --default-character-set=utf8mb4 twelvet-fast \
+  < docs/db/twelvet-fast_2026-11-03.sql
+
+# 方式二：命令行内直接 source（适合交互式）
+#   mysql> CREATE DATABASE IF NOT EXISTS `twelvet-fast`;
+#   mysql> USE `twelvet-fast`;
+#   mysql> source F:/code/weiwei/docs/db/twelvet-fast_2026-11-03.sql
+
+# 步骤三：验证
+mysql -uroot -p -N -e "SELECT COUNT(*) FROM information_schema.tables
+  WHERE table_schema='twelvet-fast';"        # 应为 120
+mysql -uroot -p --default-character-set=utf8mb4 -N \
+  -e "SELECT COUNT(*) FROM \`twelvet-fast\`.sys_user;"   # 应为 8
+
+backend/sql/*.sql 与 backend/data/*.sql 下的增量脚本
+------------------------------------------------
+**其效果已全部包含在本基线内，新环境不必再执行**，保留仅为追溯每一步的
+变更内容（它们是幂等脚本，重复执行也不会出错，但没必要）。
+
+注意其中两条的顺序约束，若将来需要重放增量脚本，顺序不能颠倒：
+  · settlement_schema.sql 会重建空的 trade_withdraw，必须排在 settlement_menu.sql 之前；
+  · pay_biz_type.sql 的历史回填依赖结算表已存在，必须排在 settlement_schema.sql 之后。
+完整清单与说明见根目录 CLAUDE.md 的「数据库初始化」一节。
+
+旧基线
+------------------------------------------------
+docs/db/twelvet-fast_2026-10-21.sql（107 表）**仍然保留**，用于追溯 10-21 至
+11-03 之间的差异（本文件顶部的变化明细即由两者对比得出）。新环境请勿使用
+它——用它还需要补执行 12 个增量脚本，而本文件已经省掉这一步。
+
+注意事项
+------------------------------------------------
+1. 导入前确认目标库字符集为 utf8mb4 / utf8mb4_unicode_ci，否则中文会乱码。
+2. 文件含 DROP TABLE IF EXISTS，导入到已有库会覆盖同名表，请先备份。
+3. 字段注释干净（无乱码），本次导出后**已实测可完整还原**：120 张表全部建成功；
+   还原到临时库后与源库逐表精确比对，120 张表的 COUNT(*) 行数、字段数完全一致，
+   索引条目总数一致（465 = 465）。比对用的临时库已删除，未留在本机。
+4. 导出/导入环境为 MySQL 8.0.37。导入到 8.4 需留意 8.4 对部分语法/保留字
+   的收紧；导入到 5.7 因 utf8mb4_0900_ai_ci 等排序规则会失败。
+5. 库内含 _bak_ai_image_task_20260923 一张历史备份表（上一版基线也带着它），
+   与业务无关，属开发库原样导出；介意可手工 DROP。
+6. 若后续数据量变大（>1 GB），建议加 --where 分表导出，或改用物理备份。
+
+⚠️ 若终端里查询中文显示为乱码
+------------------------------------------------
+这是**终端编码问题，不是数据损坏**。Git Bash 默认按 GBK 显示，而 MySQL
+客户端输出 UTF-8。实测字节 e7aea1 e79086 e59198 正是 UTF-8 的「管理员」。
+
+验证方法（把输出重定向到文件后用 UTF-8 读取）：
+  mysql -uroot -p --default-character-set=utf8mb4 -N \
+    -e "SELECT username, nick_name FROM \`twelvet-fast\`.\`sys_user\` LIMIT 5;" > users.tsv
+  py -3 -c "print(open('users.tsv', encoding='utf-8').read())"
+
+日常查询建议在 MySQL Workbench / DBeaver / IDEA 数据库工具里进行，
+或给 mysql 客户端加 --default-character-set=utf8mb4 并配合支持 UTF-8 的终端。

@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.trade.server.mapper.SellerAccountMapper">
+
+    <resultMap type="SellerAccount" id="AccountResult">
+        <id property="accountId" column="account_id"/>
+        <result property="sellerId" column="seller_id"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="accountName" column="account_name"/>
+        <result property="idCardNo" column="id_card_no"/>
+        <result property="bankCardNo" column="bank_card_no"/>
+        <result property="bankName" column="bank_name"/>
+        <result property="kycStatus" column="kyc_status"/>
+        <result property="balance" column="balance"/>
+        <result property="frozen" column="frozen"/>
+        <result property="version" column="version"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="accountCols">
+        account_id, seller_id, tenant_id, account_name, id_card_no, bank_card_no, bank_name,
+        kyc_status, balance, frozen, version, create_time, update_time
+    </sql>
+
+    <select id="selectBySeller" resultMap="AccountResult">
+        SELECT <include refid="accountCols"/> FROM seller_account
+        WHERE seller_id = #{sellerId} AND tenant_id = #{tenantId}
+    </select>
+
+    <select id="selectById" resultMap="AccountResult">
+        SELECT <include refid="accountCols"/> FROM seller_account WHERE account_id = #{accountId}
+    </select>
+
+    <insert id="insert" parameterType="SellerAccount" useGeneratedKeys="true" keyProperty="accountId">
+        INSERT INTO seller_account
+            (seller_id, tenant_id, kyc_status, balance, frozen, version, create_time, update_time)
+        VALUES (#{sellerId}, #{tenantId}, #{kycStatus}, #{balance}, #{frozen}, #{version}, NOW(), NOW())
+    </insert>
+
+    <update id="submitKyc">
+        UPDATE seller_account
+        SET account_name = #{accountName}, id_card_no = #{idCardNo}, bank_card_no = #{bankCardNo},
+            bank_name = #{bankName}, kyc_status = 'pending', update_time = NOW()
+        WHERE account_id = #{accountId} AND tenant_id = #{tenantId}
+          AND kyc_status IN ('unverified','rejected')
+    </update>
+
+    <update id="reviewKyc">
+        UPDATE seller_account SET kyc_status = #{kycStatus}, update_time = NOW()
+        WHERE account_id = #{accountId} AND tenant_id = #{tenantId} AND kyc_status = 'pending'
+    </update>
+
+    <update id="addBalance">
+        UPDATE seller_account SET balance = balance + #{amount}, version = version + 1, update_time = NOW()
+        WHERE account_id = #{accountId} AND version = #{version}
+    </update>
+
+    <update id="setFrozen">
+        UPDATE seller_account SET frozen = #{frozen}, update_time = NOW()
+        WHERE account_id = #{accountId} AND tenant_id = #{tenantId}
+    </update>
+
+    <update id="unfreeze">
+        UPDATE seller_account
+        SET frozen = 0, unfreeze_reason = #{reason}, unfreeze_by = #{operatorId},
+            unfreeze_time = NOW(), update_time = NOW()
+        WHERE account_id = #{accountId} AND tenant_id = #{tenantId} AND frozen = 1
+    </update>
+
+    <select id="selectKycPage" resultMap="AccountResult">
+        SELECT <include refid="accountCols"/> FROM seller_account
+        <where>
+            <if test="kycStatus != null and kycStatus != ''">AND kyc_status = #{kycStatus}</if>
+            <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        </where>
+        ORDER BY account_id DESC
+    </select>
+
+</mapper>

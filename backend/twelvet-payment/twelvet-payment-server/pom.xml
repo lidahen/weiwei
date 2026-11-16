@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>twelvet-payment</artifactId>
+        <groupId>com.twelvet</groupId>
+        <version>3.5.4</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>twelvet-payment-server</artifactId>
+    <description>支付服务实现（网关、回调、租户续费）</description>
+    <dependencies>
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-payment-api</artifactId>
+            <version>${twelvet.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-datasource</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-log</artifactId>
+        </dependency>
+        <!-- 租户续费履约：SysTenantMapper/PlanCatalog -->
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-system-api</artifactId>
+            <version>${twelvet.version}</version>
+        </dependency>
+        <!-- 支付宝 SDK -->
+        <dependency>
+            <groupId>com.alipay.sdk</groupId>
+            <artifactId>alipay-sdk-java</artifactId>
+            <version>4.38.80.ALL</version>
+        </dependency>
+    </dependencies>
+</project>

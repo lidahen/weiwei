@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>twelvet-trade</artifactId>
+        <groupId>com.twelvet</groupId>
+        <version>3.5.4</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>twelvet-trade-server</artifactId>
+    <dependencies>
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-trade-api</artifactId>
+            <version>${twelvet.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-datasource</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-redis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-log</artifactId>
+        </dependency>
+        <!-- 商品模块(用于下单时获取商品快照) -->
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-product-server</artifactId>
+            <version>${twelvet.version}</version>
+        </dependency>
+        <!-- 商业化 P2：扫码续费履约（SysTenantMapper/PlanCatalog；显式声明，原先经 product-server 传递） -->
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-system-api</artifactId>
+            <version>${twelvet.version}</version>
+        </dependency>
+        <!-- 支付服务 API（跨模块注入 IPayOrderService 等） -->
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-payment-api</artifactId>
+            <version>${twelvet.version}</version>
+        </dependency>
+        <!-- IM 推送能力（退款转人工/退款成功经 IImService 发 system 消息，同 product-server 的做法） -->
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-im-server</artifactId>
+            <version>${twelvet.version}</version>
+        </dependency>
+
+        <!-- WebSocket -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+    </dependencies>
+</project>

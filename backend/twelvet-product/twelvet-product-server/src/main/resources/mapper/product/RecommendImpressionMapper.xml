@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.product.server.mapper.RecommendImpressionMapper">
+
+    <resultMap id="ImpressionResult" type="com.twelvet.product.server.domain.RecommendImpression">
+        <id property="id" column="id"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="userId" column="user_id"/>
+        <result property="productId" column="product_id"/>
+        <result property="scene" column="scene"/>
+        <result property="position" column="position"/>
+        <result property="bucket" column="bucket"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <insert id="batchInsert">
+        INSERT INTO recommend_impression_log (tenant_id, user_id, product_id, scene, position, bucket, create_time)
+        VALUES
+        <foreach collection="list" item="it" separator=",">
+            (#{it.tenantId}, #{it.userId}, #{it.productId}, #{it.scene}, #{it.position}, #{it.bucket}, NOW())
+        </foreach>
+    </insert>
+
+    <!--
+      点击定义：同用户在曝光后 30 分钟内浏览该商品（product_view_log）。
+      LEFT JOIN 条件含视图时间窗，命中即视为该次曝光产生点击（DISTINCT i.id 去重）。
+      按 日期+A/B组 拆分（未开启 AB 时 bucket 恒为 0）。
+    -->
+    <select id="selectDailyStats" resultType="map">
+        SELECT DATE(i.create_time)                    AS statDate,
+               i.bucket                               AS bucket,
+               COUNT(*)                               AS impressions,
+               COUNT(DISTINCT i.user_id)              AS uv,
+               COUNT(DISTINCT CASE WHEN v.id IS NOT NULL THEN i.id END) AS clicks
+        FROM recommend_impression_log i
+        LEFT JOIN product_view_log v
+               ON v.product_id = i.product_id AND v.user_id = i.user_id
+              AND v.view_time >= i.create_time
+              AND v.view_time &lt; DATE_ADD(i.create_time, INTERVAL 30 MINUTE)
+        WHERE i.create_time >= DATE_SUB(CURDATE(), INTERVAL #{days} DAY)
+        GROUP BY DATE(i.create_time), i.bucket
+        ORDER BY statDate DESC, bucket ASC
+    </select>
+
+    <select id="selectTopProducts" resultType="map">
+        SELECT i.product_id                           AS productId,
+               p.title,
+               p.cover,
+               COUNT(*)                               AS impressions,
+               COUNT(DISTINCT CASE WHEN v.id IS NOT NULL THEN i.id END) AS clicks
+        FROM recommend_impression_log i
+        LEFT JOIN product p ON p.product_id = i.product_id
+        LEFT JOIN product_view_log v
+               ON v.product_id = i.product_id AND v.user_id = i.user_id
+              AND v.view_time >= i.create_time
+              AND v.view_time &lt; DATE_ADD(i.create_time, INTERVAL 30 MINUTE)
+        WHERE i.create_time >= DATE_SUB(CURDATE(), INTERVAL #{days} DAY)
+        <if test="bucket != null">AND i.bucket = #{bucket}</if>
+        GROUP BY i.product_id, p.title, p.cover
+        ORDER BY clicks DESC, impressions DESC
+        LIMIT #{limit}
+    </select>
+
+    <delete id="deleteOldImpressions">
+        DELETE FROM recommend_impression_log WHERE create_time &lt; DATE_SUB(NOW(), INTERVAL #{days} DAY)
+    </delete>
+
+</mapper>

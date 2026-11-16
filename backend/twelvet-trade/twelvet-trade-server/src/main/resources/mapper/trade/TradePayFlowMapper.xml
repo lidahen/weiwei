@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.trade.server.mapper.TradePayFlowMapper">
+
+    <!-- type 写入值为 pay / refund；基线 DDL 注释里的 in/out 是历史误写，已由 refund_feature.sql 修正 -->
+    <insert id="insert">
+        INSERT INTO trade_pay_flow (order_id, type, amount, channel, third_trans_no, create_time)
+        VALUES (#{orderId}, #{type}, #{amount}, #{channel}, #{thirdTransNo}, NOW())
+    </insert>
+
+</mapper>

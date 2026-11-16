@@ -1,0 +1,397 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.product.server.mapper.ProductMapper">
+
+    <resultMap id="ProductResult" type="com.twelvet.product.api.domain.Product">
+        <id property="productId" column="product_id"/>
+        <result property="sellerId" column="seller_id"/>
+        <result property="title" column="title"/>
+        <result property="cover" column="cover"/>
+        <result property="images" column="images"/>
+        <result property="price" column="price"/>
+        <result property="originalPrice" column="original_price"/>
+        <result property="condition" column="condition"/>
+        <result property="catL1" column="cat_l1"/>
+        <result property="catL2" column="cat_l2"/>
+        <result property="shippingMethod" column="shipping_method"/>
+        <result property="shippingFee" column="shipping_fee"/>
+        <result property="stock" column="stock"/>
+        <result property="status" column="status"/>
+        <result property="description" column="description"/>
+        <result property="location" column="location"/>
+        <result property="city" column="city"/>
+        <result property="viewCount" column="view_count"/>
+        <result property="wantCount" column="want_count"/>
+        <result property="chatCount" column="chat_count"/>
+        <result property="publishTime" column="publish_time"/>
+        <result property="isPinned" column="is_pinned"/>
+        <result property="purchaseDate" column="purchase_date"/>
+        <result property="auditRejectReason" column="audit_reject_reason"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="sellerNickName" column="seller_nick_name"/>
+        <result property="sellerAvatar" column="seller_avatar"/>
+        <result property="hotScore" column="hot_score"/>
+    </resultMap>
+
+    <sql id="productCols">
+        p.product_id, p.seller_id, p.title, p.cover, p.images, p.price, p.original_price,
+        p.`condition`, p.cat_l1, p.cat_l2, p.shipping_method, p.shipping_fee, p.stock,
+        p.status, p.description, p.location, p.city, p.view_count, p.want_count, p.chat_count,
+        p.publish_time, p.is_pinned, p.purchase_date, p.create_time, p.update_time, p.tenant_id
+    </sql>
+
+    <!-- 关键词检索：ngram 全文索引（MATCH...AGAINST），依赖 init SQL 的 ft_product_search -->
+    <select id="selectList" resultMap="ProductResult">
+        SELECT <include refid="productCols"/>,
+               u.nick_name AS seller_nick_name,
+               u.avatar AS seller_avatar
+        FROM product p
+        LEFT JOIN sys_user u ON p.seller_id = u.user_id
+        <where>
+            <if test="tenantId != null">AND p.tenant_id = #{tenantId}</if>
+            <if test="status != null and status != ''">AND p.status = #{status}</if>
+            <if test="catL1 != null and catL1 != ''">AND p.cat_l1 = #{catL1}</if>
+            <if test="city != null and city != ''">AND p.city = #{city}</if>
+            <if test="keyword != null and keyword != ''">
+                AND MATCH(p.title, p.description) AGAINST(#{keyword})
+            </if>
+            <if test="sellerId != null">AND p.seller_id = #{sellerId}</if>
+        </where>
+        <choose>
+            <when test="orderBy == 'price_asc'">ORDER BY p.price ASC</when>
+            <when test="orderBy == 'price_desc'">ORDER BY p.price DESC</when>
+            <when test="orderBy == 'hot'">ORDER BY p.view_count DESC, p.publish_time DESC</when>
+            <when test="orderBy == 'hot_score'">ORDER BY p.is_pinned DESC, p.hot_score DESC, p.publish_time DESC</when>
+            <when test="orderBy == 'relevance' and keyword != null and keyword != ''">
+                ORDER BY MATCH(p.title, p.description) AGAINST(#{keyword}) DESC, p.publish_time DESC
+            </when>
+            <otherwise>ORDER BY p.is_pinned DESC, p.publish_time DESC</otherwise>
+        </choose>
+    </select>
+
+    <select id="selectForAi" resultMap="ProductResult">
+        SELECT <include refid="productCols"/>,
+               u.nick_name AS seller_nick_name,
+               u.avatar AS seller_avatar
+        FROM product p
+        LEFT JOIN sys_user u ON p.seller_id = u.user_id
+        <where>
+            <if test="tenantId != null">AND p.tenant_id = #{tenantId}</if>
+            <if test="status != null and status != ''">AND p.status = #{status}</if>
+            <if test="catL1 != null and catL1 != ''">AND p.cat_l1 = #{catL1}</if>
+            <if test="city != null and city != ''">AND p.city = #{city}</if>
+            <if test="keyword != null and keyword != ''">
+                AND MATCH(p.title, p.description) AGAINST(#{keyword})
+            </if>
+            <if test="priceMin != null">AND p.price &gt;= #{priceMin}</if>
+            <if test="priceMax != null">AND p.price &lt;= #{priceMax}</if>
+            <if test="condition != null and condition != ''">AND p.`condition` = #{condition}</if>
+        </where>
+        <choose>
+            <when test="orderBy == 'price_asc'">ORDER BY p.price ASC</when>
+            <when test="orderBy == 'price_desc'">ORDER BY p.price DESC</when>
+            <when test="orderBy == 'hot'">ORDER BY p.view_count DESC, p.publish_time DESC</when>
+            <otherwise>ORDER BY p.is_pinned DESC, p.publish_time DESC</otherwise>
+        </choose>
+        <if test="limit != null">LIMIT #{limit}</if>
+    </select>
+
+    <select id="selectById" resultMap="ProductResult">
+        SELECT <include refid="productCols"/>,
+               u.nick_name AS seller_nick_name,
+               u.avatar AS seller_avatar
+        FROM product p
+        LEFT JOIN sys_user u ON p.seller_id = u.user_id
+        WHERE p.product_id = #{productId}
+        <if test="tenantId != null">AND p.tenant_id = #{tenantId}</if>
+    </select>
+
+    <select id="selectBySellerId" resultMap="ProductResult">
+        SELECT <include refid="productCols"/>,
+               u.nick_name AS seller_nick_name,
+               u.avatar AS seller_avatar
+        FROM product p
+        LEFT JOIN sys_user u ON p.seller_id = u.user_id
+        WHERE p.seller_id = #{sellerId}
+        <if test="tenantId != null">AND p.tenant_id = #{tenantId}</if>
+        AND p.status = 'onsale'
+        <if test="excludeProductId != null">AND p.product_id != #{excludeProductId}</if>
+        ORDER BY p.publish_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- ====== 推荐召回（docs/二手市场首页推荐设计.md） ====== -->
+
+    <select id="selectInterestCandidates" resultMap="ProductResult">
+        SELECT <include refid="productCols"/>, p.hot_score,
+               u.nick_name AS seller_nick_name,
+               u.avatar AS seller_avatar
+        FROM product p
+        LEFT JOIN sys_user u ON p.seller_id = u.user_id
+        WHERE p.status = 'onsale'
+        <if test="tenantId != null">AND p.tenant_id = #{tenantId}</if>
+          AND p.cat_l1 IN
+        <foreach collection="catL1s" item="cat" open="(" separator="," close=")">#{cat}</foreach>
+          AND p.publish_time >= DATE_SUB(NOW(), INTERVAL #{days} DAY)
+        ORDER BY p.publish_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectHotCandidates" resultMap="ProductResult">
+        SELECT <include refid="productCols"/>, p.hot_score,
+               u.nick_name AS seller_nick_name,
+               u.avatar AS seller_avatar
+        FROM product p
+        LEFT JOIN sys_user u ON p.seller_id = u.user_id
+        WHERE p.status = 'onsale'
+        <if test="tenantId != null">AND p.tenant_id = #{tenantId}</if>
+        ORDER BY p.hot_score DESC, p.publish_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectRecentCandidates" resultMap="ProductResult">
+        SELECT <include refid="productCols"/>, p.hot_score,
+               u.nick_name AS seller_nick_name,
+               u.avatar AS seller_avatar
+        FROM product p
+        LEFT JOIN sys_user u ON p.seller_id = u.user_id
+        WHERE p.status = 'onsale'
+        <if test="tenantId != null">AND p.tenant_id = #{tenantId}</if>
+          AND p.publish_time >= DATE_SUB(NOW(), INTERVAL #{days} DAY)
+        ORDER BY p.publish_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectCityCandidates" resultMap="ProductResult">
+        SELECT <include refid="productCols"/>, p.hot_score,
+               u.nick_name AS seller_nick_name,
+               u.avatar AS seller_avatar
+        FROM product p
+        LEFT JOIN sys_user u ON p.seller_id = u.user_id
+        WHERE p.status = 'onsale'
+        <if test="tenantId != null">AND p.tenant_id = #{tenantId}</if>
+          AND p.city = #{city}
+          AND p.publish_time >= DATE_SUB(NOW(), INTERVAL #{days} DAY)
+        ORDER BY p.hot_score DESC, p.publish_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectFollowFeed" resultMap="ProductResult">
+        SELECT <include refid="productCols"/>, p.hot_score,
+               u.nick_name AS seller_nick_name,
+               u.avatar AS seller_avatar
+        FROM product p
+        LEFT JOIN sys_user u ON p.seller_id = u.user_id
+        WHERE p.status = 'onsale'
+        <if test="tenantId != null">AND p.tenant_id = #{tenantId}</if>
+          AND p.seller_id IN
+        <foreach collection="sellerIds" item="sid" open="(" separator="," close=")">#{sid}</foreach>
+        ORDER BY p.publish_time DESC
+    </select>
+
+    <select id="selectOnsaleByIds" resultMap="ProductResult">
+        SELECT <include refid="productCols"/>, p.hot_score,
+               u.nick_name AS seller_nick_name,
+               u.avatar AS seller_avatar
+        FROM product p
+        LEFT JOIN sys_user u ON p.seller_id = u.user_id
+        WHERE p.status = 'onsale'
+        <if test="tenantId != null">AND p.tenant_id = #{tenantId}</if>
+          AND p.product_id IN
+        <foreach collection="productIds" item="pid" open="(" separator="," close=")">#{pid}</foreach>
+    </select>
+
+    <select id="selectSimilarFallback" resultMap="ProductResult">
+        SELECT <include refid="productCols"/>, p.hot_score,
+               u.nick_name AS seller_nick_name,
+               u.avatar AS seller_avatar
+        FROM product p
+        LEFT JOIN sys_user u ON p.seller_id = u.user_id
+        WHERE p.status = 'onsale'
+        <if test="tenantId != null">AND p.tenant_id = #{tenantId}</if>
+          AND p.cat_l1 = #{catL1}
+          AND p.product_id != #{excludeProductId}
+        ORDER BY p.hot_score DESC, p.publish_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <!--
+      热度分 gravity 衰减（趋势热度）：(近7日浏览 + want*3 + chat*2) / POW(发布天数 + 2, 1.2)
+      用近期浏览而非累计浏览——上周被翻牌的老物件能重新浮上来，新商品不被历史存量压制。
+      LEAST(t, NOW()) 钳制未来发布时间；全表刷新（派生指标，无租户泄漏问题）
+    -->
+    <update id="refreshHotScore">
+        UPDATE product p
+        LEFT JOIN (
+            SELECT product_id, COUNT(*) AS v7
+            FROM product_view_log
+            WHERE view_time >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            GROUP BY product_id
+        ) s ON s.product_id = p.product_id
+        SET p.hot_score = (COALESCE(s.v7, 0) + p.want_count * 3 + p.chat_count * 2)
+            / POW(TIMESTAMPDIFF(HOUR, LEAST(COALESCE(p.publish_time, p.create_time, NOW()), NOW()), NOW()) / 24 + 2, 1.2)
+        WHERE COALESCE(p.publish_time, p.create_time) IS NOT NULL
+    </update>
+
+    <update id="incrementView">
+        UPDATE product SET view_count = view_count + 1
+        WHERE product_id = #{productId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <select id="selectFavoriteProductIds" resultType="long">
+        SELECT product_id FROM product_favorite WHERE user_id = #{userId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </select>
+
+    <select id="selectFavoriteProductIdsByUserAndIds" resultType="long">
+        SELECT product_id FROM product_favorite
+        WHERE user_id = #{userId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        <if test="productIds != null and !productIds.empty">
+            AND product_id IN
+            <foreach collection="productIds" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+    </select>
+
+    <!-- ====== 发布/编辑/删除 ====== -->
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="productId">
+        INSERT INTO product (seller_id, title, cover, images, price, original_price, `condition`,
+                             cat_l1, cat_l2, shipping_method, shipping_fee, stock, status,
+                             description, location, city, purchase_date, publish_time, create_time, update_time
+                             <if test="tenantId != null">, tenant_id</if>)
+        VALUES (#{sellerId}, #{title}, #{cover}, #{images}, #{price}, #{originalPrice}, #{condition},
+                #{catL1}, #{catL2}, #{shippingMethod}, #{shippingFee}, #{stock}, #{status},
+                #{description}, #{location}, #{city}, #{purchaseDate}, #{publishTime}, #{createTime}, #{updateTime}
+                <if test="tenantId != null">, #{tenantId}</if>)
+    </insert>
+
+    <update id="update">
+        UPDATE product
+        <set>
+            <if test="title != null">title = #{title},</if>
+            <if test="cover != null">cover = #{cover},</if>
+            <if test="images != null">images = #{images},</if>
+            <if test="price != null">price = #{price},</if>
+            <if test="originalPrice != null">original_price = #{originalPrice},</if>
+            <if test="condition != null">`condition` = #{condition},</if>
+            <if test="catL1 != null">cat_l1 = #{catL1},</if>
+            <if test="catL2 != null">cat_l2 = #{catL2},</if>
+            <if test="shippingMethod != null">shipping_method = #{shippingMethod},</if>
+            <if test="shippingFee != null">shipping_fee = #{shippingFee},</if>
+            <if test="stock != null">stock = #{stock},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="location != null">location = #{location},</if>
+            <if test="city != null">city = #{city},</if>
+            <if test="purchaseDate != null">purchase_date = #{purchaseDate},</if>
+            update_time = NOW()
+        </set>
+        WHERE product_id = #{productId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <update id="updateStatus">
+        UPDATE product
+        SET status = #{status},
+            <if test="rejectReason != null">audit_reject_reason = #{rejectReason},</if>
+            update_time = NOW()
+        WHERE product_id = #{productId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!--
+      举报处置专用：把「可下架状态」判断下沉到 SQL，消除读-改之间的 TOCTOU。
+      不加 expectStatus 守卫时，运营读到 onsale、买家并发下单 deductStock 置为 locked、
+      运营的 UPDATE 再把 locked 覆盖成 offshelf，已付款订单的 markSold 就永远不再命中。
+      影响行数为 0 表示状态已变，调用方必须按失败处理（见 ReportServiceImpl.applyAction）。
+    -->
+    <update id="updateStatusIfIn">
+        UPDATE product
+        SET status = #{status},
+            update_time = NOW()
+        WHERE product_id = #{productId}
+          AND status IN
+        <foreach collection="expectedStatuses" item="s" open="(" separator="," close=")">
+            #{s}
+        </foreach>
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 原子扣库存（下单防超卖）：stock > 0 防超卖、status = 'onsale' 防拍非在售；
+         扣至 0 时锁定为 locked。rows=0 即商品已下架或已被拍下。
+         ⚠️ MySQL 的 UPDATE 赋值自左向右求值，后续赋值读到的是已更新值：
+         status 必须排在 stock 之前读旧值、条件用 stock <= 1；
+         若写在 stock = stock - 1 之后，库存 2 扣到 1 时会读到 1 而被误置 locked（提前锁死剩件）。 -->
+    <update id="deductStock">
+        UPDATE product SET
+            status = IF(stock &lt;= 1, 'locked', status),
+            stock = stock - 1, update_time = NOW()
+        WHERE product_id = #{productId} AND stock &gt; 0 AND status = 'onsale'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 回补库存（取消/超时关单）：locked（因扣减被锁）恢复 onsale；
+         sold 也恢复 onsale——多库存商品（stock=2）两单扣至 0/locked 后，买家 A 确认收货置 sold，
+         买家 B 再取消时旧条件 IF(status='locked',...) 不命中，stock 0→1 却停留 sold：
+         幽灵库存不可见不可售，卖家也无法编辑/下架。回补前提是有库存释放，sold 的前提
+         （stock=0）已不成立，恢复 onsale 语义正确。
+         调用方必须保证同一订单仅释放一次（原子 UPDATE rows=1 才调），防止双倍回补。 -->
+    <update id="restoreStock">
+        UPDATE product SET
+            status = IF(status IN ('locked', 'sold'), 'onsale', status),
+            stock = stock + 1, update_time = NOW()
+        WHERE product_id = #{productId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 交易完成标记已售：stock=0 守卫保证多库存商品不被误标（仍有库存可继续卖）；
+         status='locked' 守卫保证非锁定状态（已下架等）不被改动。 -->
+    <update id="markSold">
+        UPDATE product SET status = 'sold', update_time = NOW()
+        WHERE product_id = #{productId} AND stock = 0 AND status = 'locked'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM product
+        WHERE product_id = #{productId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </delete>
+
+    <!-- ====== 草稿 ====== -->
+
+    <select id="selectDraftBySellerId" resultType="string">
+        SELECT snapshot FROM product_draft WHERE seller_id = #{sellerId}
+    </select>
+
+    <insert id="upsertDraft">
+        INSERT INTO product_draft (seller_id, snapshot, update_time)
+        VALUES (#{sellerId}, #{snapshot}, NOW())
+        ON DUPLICATE KEY UPDATE snapshot = VALUES(snapshot), update_time = NOW()
+    </insert>
+
+    <delete id="deleteDraftBySellerId">
+        DELETE FROM product_draft WHERE seller_id = #{sellerId}
+    </delete>
+
+    <select id="countSoldProducts" resultType="Long">
+        SELECT COUNT(*) FROM product WHERE seller_id = #{sellerId} AND status = 'sold'
+    </select>
+
+    <select id="selectByIds" resultMap="ProductResult">
+        SELECT <include refid="productCols"/>
+        FROM product p
+        WHERE p.product_id IN
+        <foreach collection="productIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        <if test="tenantId != null">AND p.tenant_id = #{tenantId}</if>
+    </select>
+
+</mapper>

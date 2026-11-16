@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.trade.server.mapper.TradeRefundMapper">
+
+    <resultMap type="TradeRefund" id="RefundResult">
+        <id property="refundId" column="refund_id"/>
+        <result property="orderId" column="order_id"/>
+        <result property="buyerId" column="buyer_id"/>
+        <result property="sellerId" column="seller_id"/>
+        <result property="type" column="type"/>
+        <result property="reasonCode" column="reason_code"/>
+        <result property="amount" column="amount"/>
+        <result property="description" column="description"/>
+        <result property="evidenceImages" column="evidence_images"/>
+        <result property="status" column="status"/>
+        <result property="returnCompany" column="return_company"/>
+        <result property="returnNo" column="return_no"/>
+        <result property="returnAddressSnapshot" column="return_address_snapshot"/>
+        <result property="prevOrderStatus" column="prev_order_status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="activeFlag" column="active_flag"/>
+    </resultMap>
+
+    <sql id="refundCols">
+        r.refund_id, r.order_id, r.buyer_id, r.seller_id, r.type, r.reason_code,
+        r.amount, r.description, r.evidence_images, r.status,
+        r.return_company, r.return_no, r.return_address_snapshot,
+        r.prev_order_status, r.create_time, r.update_time, r.active_flag
+    </sql>
+
+    <!--
+      列清单不含 active_flag：它是 STORED GENERATED 生成列，MySQL 8.0 写入会报 3105。
+      进行中唯一性由 uk_order_active(order_id, active_flag) 保证，故此处也不能用
+      INSERT ... ON DUPLICATE KEY UPDATE（那会绕过唯一约束，把并发重复申请静默吞掉）。
+    -->
+    <insert id="insert" parameterType="TradeRefund" useGeneratedKeys="true" keyProperty="refundId">
+        INSERT INTO trade_refund
+            (order_id, buyer_id, seller_id, type, reason_code, amount, description,
+             evidence_images, status, return_company, return_no, return_address_snapshot,
+             prev_order_status, create_time, update_time)
+        VALUES
+            (#{orderId}, #{buyerId}, #{sellerId}, #{type}, #{reasonCode}, #{amount}, #{description},
+             #{evidenceImages}, #{status}, #{returnCompany}, #{returnNo}, #{returnAddressSnapshot},
+             #{prevOrderStatus}, NOW(), NOW())
+    </insert>
+
+    <select id="selectById" resultMap="RefundResult">
+        SELECT <include refid="refundCols"/>
+        FROM trade_refund r
+        JOIN trade_order o ON o.order_id = r.order_id
+        WHERE r.refund_id = #{refundId}
+        <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>
+    </select>
+
+    <select id="selectActiveByOrderId" resultMap="RefundResult">
+        SELECT <include refid="refundCols"/>
+        FROM trade_refund r
+        WHERE r.order_id = #{orderId}
+          AND r.status IN ('pending_seller','seller_agreed','buyer_returned','refunding','mediation')
+        ORDER BY r.refund_id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectList" resultMap="RefundResult">
+        SELECT <include refid="refundCols"/>
+        FROM trade_refund r
+        JOIN trade_order o ON o.order_id = r.order_id
+        WHERE
+        <choose>
+            <when test="role == 'buyer'">r.buyer_id = #{userId}</when>
+            <otherwise>r.seller_id = #{userId}</otherwise>
+        </choose>
+        <if test="status != null and status != ''">AND r.status = #{status}</if>
+        <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>
+        ORDER BY r.refund_id DESC
+    </select>
+
+    <select id="selectAdminList" resultMap="RefundResult">
+        SELECT <include refid="refundCols"/>
+        FROM trade_refund r
+        JOIN trade_order o ON o.order_id = r.order_id
+        WHERE 1 = 1
+        <if test="status != null and status != ''">AND r.status = #{status}</if>
+        <!-- 运营 SLA：仅看超时单。阈值与 TradeRefundServiceImpl 超时策略一致——
+             待卖家处理 48h（create_time 起算，卖家一直不动就一直超时）；
+             退货中 7 天（update_time 为进入该状态的时间）；待收口 24h -->
+        <if test="overdue != null and overdue">
+            AND (
+                (r.status = 'pending_seller' AND r.create_time &lt; DATE_SUB(NOW(), INTERVAL 48 HOUR))
+                OR (r.status IN ('seller_agreed','buyer_returned')
+                    AND r.update_time &lt; DATE_SUB(NOW(), INTERVAL 7 DAY))
+                OR (r.status IN ('mediation','refunding')
+                    AND r.update_time &lt; DATE_SUB(NOW(), INTERVAL 24 HOUR))
+            )
+        </if>
+        <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>
+        ORDER BY r.refund_id DESC
+    </select>
+
+    <!-- 前置状态守卫：WHERE 里带 status = #{fromStatus}，调用方必须检查返回行数，0 行即状态已变更 -->
+    <update id="updateStatus">
+        UPDATE trade_refund
+        SET status = #{toStatus}, update_time = NOW()
+        WHERE refund_id = #{refundId}
+          AND status = #{fromStatus}
+    </update>
+
+    <update id="updateReturnLogistics">
+        UPDATE trade_refund
+        SET return_company = #{company}, return_no = #{returnNo}, update_time = NOW()
+        WHERE refund_id = #{refundId}
+    </update>
+
+    <!-- 卖家同意退货退款时快照退货地址：买家之后只能看到这份快照，不受卖家后续改地址影响 -->
+    <update id="updateReturnAddress">
+        UPDATE trade_refund
+        SET return_address_snapshot = #{returnAddress}, update_time = NOW()
+        WHERE refund_id = #{refundId}
+    </update>
+
+    <select id="countActiveByOrderId" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM trade_refund
+        WHERE order_id = #{orderId}
+          AND status IN ('pending_seller','seller_agreed','buyer_returned','refunding','mediation')
+    </select>
+
+    <!--
+      三个超时扫描：
+      - selectSellerTimeout 用 create_time（pending_seller 阶段没有流转，create_time 即申请时刻）
+      - selectReturnTimeout 刻意用 create_time，不是 update_time：用 update_time 会在每次流转后
+        重置计时，导致「卖家拒绝→买家介入」的退款单永远扫不到（见设计文档 §8.3）
+      - selectConfirmTimeout 用 update_time（buyer_returned 是买家操作写入的时刻）
+    -->
+    <select id="selectSellerTimeout" resultMap="RefundResult">
+        SELECT <include refid="refundCols"/>
+        FROM trade_refund r
+        WHERE r.status = 'pending_seller'
+          AND r.create_time &lt; #{before}
+        ORDER BY r.refund_id
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectReturnTimeout" resultMap="RefundResult">
+        SELECT <include refid="refundCols"/>
+        FROM trade_refund r
+        WHERE r.status = 'seller_agreed'
+          AND r.create_time &lt; #{before}
+        ORDER BY r.refund_id
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectConfirmTimeout" resultMap="RefundResult">
+        SELECT <include refid="refundCols"/>
+        FROM trade_refund r
+        WHERE r.status = 'buyer_returned'
+          AND r.update_time &lt; #{before}
+        ORDER BY r.refund_id
+        LIMIT #{limit}
+    </select>
+
+</mapper>

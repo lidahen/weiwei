@@ -1,0 +1,718 @@
+{
+  "generated_at": "2026-10-15 18:04:35",
+  "mode": "offline-rules",
+  "total": 100,
+  "passed": 95,
+  "accuracy": 0.95,
+  "miss_high_to_low": 0,
+  "miss_rate": 0.0,
+  "over_reject": 0,
+  "over_rate": 0.0,
+  "rows": [
+    {
+      "id": "M01",
+      "note": "正常二手手机",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M02",
+      "note": "正常家具",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M03",
+      "note": "正常母婴用品",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M04",
+      "note": "正常电子产品",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M05",
+      "note": "正常书籍",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M06",
+      "note": "正常交通工具",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M07",
+      "note": "正常（破解版平台允许与否不在初审分级内）",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M08",
+      "note": "正常家电",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M09",
+      "note": "正常学习资料",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M10",
+      "note": "正常玩具",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M11",
+      "note": "站外引流",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M12",
+      "note": "引流词 加vx",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M13",
+      "note": "引导私下交易",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M14",
+      "note": "含手机号",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M15",
+      "note": "含QQ号",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M16",
+      "note": "假冒话术",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M17",
+      "note": "假冒话术",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M18",
+      "note": "价格明显异常",
+      "expected": "medium",
+      "actual": "low",
+      "hit": false,
+      "failure_class": "漏放（违规判成正常）"
+    },
+    {
+      "id": "M19",
+      "note": "站外引流",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M20",
+      "note": "引导平台外支付",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M21",
+      "note": "毒品 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M22",
+      "note": "违禁药品 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M23",
+      "note": "枪支弹药 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M24",
+      "note": "爆炸物 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M25",
+      "note": "假证 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M26",
+      "note": "假发票 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M27",
+      "note": "色情 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M28",
+      "note": "器官 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M29",
+      "note": "管制刀具 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M30",
+      "note": "洗钱 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M31",
+      "note": "正常电脑",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M32",
+      "note": "正常宠物用品（非活体）",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M33",
+      "note": "正常会员转让",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M34",
+      "note": "正常相机",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M35",
+      "note": "正常母婴",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M36",
+      "note": "正常家电",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M37",
+      "note": "正常乐器",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M38",
+      "note": "正常家具",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M39",
+      "note": "正常户外",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M40",
+      "note": "正常办公",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M41",
+      "note": "引流词（带空格变体）",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M42",
+      "note": "线下交易引导",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M43",
+      "note": "假冒话术",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M44",
+      "note": "假冒话术",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M45",
+      "note": "引流词",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M46",
+      "note": "假冒话术",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M47",
+      "note": "跑分变体 给料 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M48",
+      "note": "色情 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M49",
+      "note": "枪支 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M50",
+      "note": "引导平台外支付",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M51",
+      "note": "正常社区帖子",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M52",
+      "note": "正常社区通知",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M53",
+      "note": "正常求助",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M54",
+      "note": "正常活动组织",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M55",
+      "note": "正常分享",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M56",
+      "note": "威胁性言论（LLM 判定依赖，规则不命中）",
+      "expected": "medium",
+      "actual": "low",
+      "hit": false,
+      "failure_class": "漏放（违规判成正常）"
+    },
+    {
+      "id": "M57",
+      "note": "引流（LLM 依赖，规则无二维码词）",
+      "expected": "medium",
+      "actual": "low",
+      "hit": false,
+      "failure_class": "漏放（违规判成正常）"
+    },
+    {
+      "id": "M58",
+      "note": "明显欺诈（LLM 依赖）",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M59",
+      "note": "欺诈话术（LLM 依赖）",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M60",
+      "note": "正常求购",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M61",
+      "note": "正常个护",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M62",
+      "note": "正常母婴",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M63",
+      "note": "正常家电",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M64",
+      "note": "正常户外",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M65",
+      "note": "正常美妆（个人闲置）",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M66",
+      "note": "毒品 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M67",
+      "note": "毒品 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M68",
+      "note": "管制刀具 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M69",
+      "note": "假证 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M70",
+      "note": "色情 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M71",
+      "note": "正常箱包",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M72",
+      "note": "正常书籍",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M73",
+      "note": "正常健身",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M74",
+      "note": "正常（个人少量库存可接受）",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M75",
+      "note": "正常家电",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M76",
+      "note": "引流",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M77",
+      "note": "假冒话术+引导直接下单",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M78",
+      "note": "含手机号",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M79",
+      "note": "引导私下交易",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M80",
+      "note": "夸大宣传（LLM 依赖）",
+      "expected": "medium",
+      "actual": "low",
+      "hit": false,
+      "failure_class": "漏放（违规判成正常）"
+    },
+    {
+      "id": "M81",
+      "note": "违禁药品+欺诈（LLM 依赖）",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M82",
+      "note": "洗钱 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M83",
+      "note": "代孕 hard",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M84",
+      "note": "正常商用设备",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M85",
+      "note": "正常收藏品",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M86",
+      "note": "正常电子产品",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M87",
+      "note": "引流",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M88",
+      "note": "假冒话术",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M89",
+      "note": "线下交易引导",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M90",
+      "note": "正常汽配",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M91",
+      "note": "色情（LLM 依赖，规则词未覆盖）",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M92",
+      "note": "毒品（LLM 依赖，规则词未覆盖）",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M93",
+      "note": "枪支（LLM 依赖，规则词未覆盖）",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M94",
+      "note": "正常母婴",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M95",
+      "note": "正常家电",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M96",
+      "note": "正常电脑",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    },
+    {
+      "id": "M97",
+      "note": "洗钱+欺诈（LLM 依赖）",
+      "expected": "high",
+      "actual": "high",
+      "hit": true
+    },
+    {
+      "id": "M98",
+      "note": "引流",
+      "expected": "medium",
+      "actual": "medium",
+      "hit": true
+    },
+    {
+      "id": "M99",
+      "note": "假冒话术（LLM 依赖）",
+      "expected": "medium",
+      "actual": "low",
+      "hit": false,
+      "failure_class": "漏放（违规判成正常）"
+    },
+    {
+      "id": "M100",
+      "note": "正常家具打包",
+      "expected": "low",
+      "actual": "low",
+      "hit": true
+    }
+  ]
+}

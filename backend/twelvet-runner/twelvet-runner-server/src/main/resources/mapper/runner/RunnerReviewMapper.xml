@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.runner.server.mapper.RunnerReviewMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="review.id">
+        INSERT INTO twelve_runner_review
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="tenantId != null">tenant_id,</if>
+            task_id,
+            <if test="review.orderId != null">order_id,</if>
+            <if test="review.taskNo != null">task_no,</if>
+            publisher_id,
+            runner_id,
+            rating,
+            <if test="review.tags != null">tags,</if>
+            <if test="review.content != null">content,</if>
+            create_time
+        </trim>
+        VALUES
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="tenantId != null">#{tenantId},</if>
+            #{review.taskId},
+            <if test="review.orderId != null">#{review.orderId},</if>
+            <if test="review.taskNo != null">#{review.taskNo},</if>
+            #{review.publisherId},
+            #{review.runnerId},
+            #{review.rating},
+            <if test="review.tags != null">#{review.tags},</if>
+            <if test="review.content != null">#{review.content},</if>
+            NOW()
+        </trim>
+    </insert>
+
+    <select id="selectByTaskId" resultType="com.twelvet.runner.server.domain.RunnerReview">
+        SELECT * FROM twelve_runner_review
+        WHERE task_id = #{taskId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        LIMIT 1
+    </select>
+
+    <!-- 信用画像：聚合评价 + 任务 + 接单记录（实时计算，不加冗余信用表）
+         penalizedCount：异常单数（接到手后被取消/退款/纠纷，即 status IN cancelled/refund/disputed） -->
+    <select id="selectCreditProfile" resultType="java.util.HashMap">
+        SELECT
+            (SELECT COUNT(*) FROM twelve_runner_task t
+                WHERE t.assignee_id = #{userId} AND t.status = 'completed'
+                <if test="tenantId != null">AND t.tenant_id = #{tenantId}</if>) AS completedCount,
+            (SELECT COUNT(*) FROM twelve_runner_task t
+                WHERE t.assignee_id = #{userId} AND t.assign_time IS NOT NULL
+                <if test="tenantId != null">AND t.tenant_id = #{tenantId}</if>) AS totalCount,
+            (SELECT COUNT(*) FROM twelve_runner_task t
+                WHERE t.assignee_id = #{userId} AND t.status = 'completed'
+                  AND t.confirm_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                <if test="tenantId != null">AND t.tenant_id = #{tenantId}</if>) AS completedCount30d,
+            (SELECT COUNT(*) FROM twelve_runner_order o
+                WHERE o.runner_id = #{userId} AND o.assign_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>) AS acceptedCount30d,
+            (SELECT COUNT(*) FROM twelve_runner_task t
+                WHERE t.assignee_id = #{userId}
+                  AND t.status IN ('cancelled', 'refund', 'disputed')
+                <if test="tenantId != null">AND t.tenant_id = #{tenantId}</if>) AS penalizedCount,
+            (SELECT COUNT(*) FROM twelve_runner_task t
+                WHERE t.assignee_id = #{userId}
+                  AND t.status IN ('cancelled', 'refund', 'disputed')
+                  AND t.assign_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                <if test="tenantId != null">AND t.tenant_id = #{tenantId}</if>) AS penalizedCount30d,
+            (SELECT ROUND(AVG(r.rating), 1) FROM twelve_runner_review r
+                WHERE r.runner_id = #{userId}
+                <if test="tenantId != null">AND r.tenant_id = #{tenantId}</if>) AS avgRating,
+            (SELECT COUNT(*) FROM twelve_runner_review r
+                WHERE r.runner_id = #{userId}
+                <if test="tenantId != null">AND r.tenant_id = #{tenantId}</if>) AS reviewCount
+    </select>
+
+</mapper>

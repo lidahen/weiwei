@@ -1,0 +1,112 @@
+# === Java (backend/) ===
+.gradle
+/build/
+target/
+!.mvn/wrapper/maven-wrapper.jar
+.idea/
+*.iws
+*.iml
+*.ipr
+*.log
+*.xml.versionsBackup
+
+# === Python (ai-service/) ===
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# === Node (ui/) ===
+node_modules/
+dist/
+.parcel-cache/
+.yarn/
+.pnp.*
+
+# === Secrets ===
+# .env 只存在于本机，永不入库；模板见 ai-service/.env.example
+.env
+.env.local
+
+# === 本地工作流与运行产物（含个人配置、日志、IDE 数据源）===
+.claude/
+.superpowers/
+.workbuddy/
+.idea/
+.run/
+.zcodeignore
+*.pem
+*.key
+
+# 可选：若日后想把密钥移出 application.yml，可在进程工作目录的 config/ 下放本地覆盖文件，
+# 它优先级高于打包进 jar 的 application.yml，下面两条保证它不会被提交。
+backend/config/application.yml
+backend/config/application-*.yml
+
+# === Runtime data ===
+# NOTE: ai-service/data/faiss_indexes/ is intentionally tracked because
+# the RAG index takes hours to rebuild and the repo is private.
+# data/faiss_indexes/
+# data/uploads/
+
+# === IDE / OS / Migration backup ===
+.DS_Store
+Thumbs.db
+.vscode/
+.archive/
+
+# Runtime artifacts
+backend/dump.rdb
+
+# 本地 worktree 目录（多会话开发用，不入库）
+.worktrees/
+
+# === Session / runtime junk (local only) ===
+.claude/
+.workbuddy/
+ui/tmp/
+logs/
+ui/src/.umi-test/
+.zcode/
+
+# === AI service runtime artifacts ===
+# 测试时下载的样本/生成的产物, 不入库
+ai-service/data/cover_*.jpg
+ai-service/data/mv_*.jpg
+ai-service/data/mv_*.mp4
+ai-service/data/test_song_*.mp3
+# 运行时 trace（RAG demo / API 会产生，不入库）
+ai-service/data/rag_traces.jsonl
+ai-service/logs/
+
+# === 数据库全量导出 ===
+# 唯一入库的导出是 docs/db/twelvet-fast_2026-10-21.sql（107 表，入库，不要忽略）。
+# 旧版结构导出（84 表，缺 tenant_id/global_user_id）曾以 weiwei*.sql 命名，已于 2026-10-21 删除；
+# 规则保留，防止再有人把同类旧导出拖进仓库。
+weiwei*.sql
+# 导出文件的原始/中间备份（可由全量导出重新生成）
+docs/db/*.orig-backup
+docs/db/*.bak
+# 修复脚本的临时产物
+docs/db/*_detect*.py
+
+# === 前端构建产物备份 ===
+# 每次部署会在 ui/ 下留 dist.bak-<时间戳>，属可再生的本地快照
+ui/dist.bak-*/
+
+# === 本地工具工作目录（个人笔记/学习材料，不入库）===
+# .atomcode.md / .atomcode/：AtomCode 工具产物（未随仓库交付）
+# .superpowers/：Superpowers 技能的工作目录（brainstorm 预览服务状态、sdd 任务账本），
+#                技能运行时会自动重建，不入库
+# OpenSpecLearn/、SuperpowersLearn/：2026-06-07 的中文学习笔记，已于 2026-10-21 删除；
+#                规则保留以防再次创建
+.atomcode.md
+.atomcode/
+.superpowers/
+OpenSpecLearn/
+SuperpowersLearn/

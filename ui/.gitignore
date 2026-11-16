@@ -1,0 +1,56 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+**/node_modules
+# roadhog-api-doc ignore
+/src/utils/request-temp.js
+_roadhog-api-doc
+
+# production
+/dist
+/.vscode
+.mfsu-production
+
+# misc
+.DS_Store
+npm-debug.log*
+yarn-error.log
+
+/coverage
+.idea
+
+# ── 依赖锁文件：只交付 npm 的 package-lock.json ──
+# 决策依据（2026-10-13）：
+#   1) 磁盘上的 node_modules 本就是 npm 装的，package-lock.json（lockfileVersion 3，
+#      3268 个包）与 package.json 同步（npm ci --dry-run 退出码 0）；
+#   2) deploy/部署交接手册.md:165-168 已记录 yarn 在本机报
+#      "Cannot find module .../corepack/dist/yarn..."，团队当时就是用 npm 绕过的；
+#   3) 若改用 yarn，需要重新解析并生成 yarn.lock，其解析结果很可能与"已验证通过
+#      （tsc 0 error / jest 全绿）"的那棵依赖树不同，等于把绿灯建立在未验证的树上。
+# 为避免多把锁并存造成解析歧义，继续忽略 yarn.lock / pnpm-lock.yaml。
+yarn.lock
+pnpm-lock.yaml
+*bak
+.vscode
+.yarn
+.yarnrc
+
+# visual studio code
+.history
+*.log
+functions/*
+.temp/**
+
+# umi
+.umi
+.umi-production
+
+# 构建期生成的 sitemap（域名随环境变化，不入库）
+public/sitemap.xml
+
+# screenshot
+screenshot
+.firebase
+.eslintcache
+
+build

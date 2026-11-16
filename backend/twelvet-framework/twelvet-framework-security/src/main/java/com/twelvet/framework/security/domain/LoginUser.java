@@ -1,0 +1,97 @@
+package com.twelvet.framework.security.domain;
+
+import com.twelvet.system.api.domain.SysRole;
+
+import java.io.Serial;
+import java.io.Serializable;
+import java.util.List;
+import java.util.Set;
+
+/**
+ * @author twelvet
+ * @Description: 登录用户身份
+ */
+public class LoginUser implements Serializable {
+
+	@Serial
+	private static final long serialVersionUID = 1L;
+
+	/**
+	 * 用户ID
+	 */
+	private Long userId;
+
+	/**
+	 * 部门ID
+	 */
+	private Long deptId;
+
+	/**
+	 * 用户名
+	 */
+	private String username;
+
+	/**
+	 * 登录租户ID（sys_user.tenant_id；登录租户即 token 租户）
+	 */
+	private Long tenantId;
+
+	/**
+	 * 角色对象
+	 */
+	private List<SysRole> roles;
+
+	/**
+	 * 权限标识集合
+	 */
+	private Set<String> permissions;
+
+	public Long getUserId() {
+		return userId;
+	}
+
+	public void setUserId(Long userId) {
+		this.userId = userId;
+	}
+
+	public Long getDeptId() {
+		return deptId;
+	}
+
+	public void setDeptId(Long deptId) {
+		this.deptId = deptId;
+	}
+
+	public String getUsername() {
+		return username;
+	}
+
+	public void setUsername(String username) {
+		this.username = username;
+	}
+
+	public Long getTenantId() {
+		return tenantId;
+	}
+
+	public void setTenantId(Long tenantId) {
+		this.tenantId = tenantId;
+	}
+
+	public List<SysRole> getRoles() {
+		return roles;
+	}
+
+	public void setRoles(List<SysRole> roles) {
+		this.roles = roles;
+	}
+
+	public Set<String> getPermissions() {
+		return permissions;
+	}
+
+	public void setPermissions(Set<String> permissions) {
+		this.permissions = permissions;
+	}
+
+}

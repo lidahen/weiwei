@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>twelvet-framework</artifactId>
+        <groupId>com.twelvet</groupId>
+        <version>3.5.4</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+    <packaging>jar</packaging>
+
+    <artifactId>twelvet-framework-security</artifactId>
+
+    <description>公共安全模块</description>
+
+    <dependencies>
+
+        <!-- Sa-Token安全框架 -->
+        <dependency>
+            <groupId>cn.dev33</groupId>
+            <artifactId>sa-token-spring-boot3-starter</artifactId>
+        </dependency>
+
+        <!--sa-token支持Redis-->
+        <dependency>
+            <groupId>cn.dev33</groupId>
+            <artifactId>sa-token-redisson-spring-boot-starter</artifactId>
+        </dependency>
+
+        <!--twelvet utils-->
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-utils</artifactId>
+        </dependency>
+
+        <!--twelvet redis-->
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-redis</artifactId>
+        </dependency>
+
+        <!--twelvet system api-->
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-system-api</artifactId>
+        </dependency>
+
+    </dependencies>
+
+</project>

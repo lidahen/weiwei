@@ -1,0 +1,1 @@
+"[{\"id\":\"username\",\"type\":\"text\",\"ph\":\"用户名\"},{\"id\":\"password\",\"type\":\"password\",\"ph\":\"密码\"},{\"id\":\"autoLogin\",\"type\":\"checkbox\",\"ph\":\"\"}]"

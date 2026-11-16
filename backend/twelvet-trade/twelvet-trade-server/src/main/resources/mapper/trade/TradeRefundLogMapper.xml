@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.trade.server.mapper.TradeRefundLogMapper">
+
+    <insert id="insert">
+        INSERT INTO trade_refund_log (refund_id, operator_id, action, content, create_time)
+        VALUES (#{refundId}, #{operatorId}, #{action}, #{content}, NOW())
+    </insert>
+
+    <select id="selectByRefundId" resultType="map">
+        SELECT log_id AS logId, refund_id AS refundId, operator_id AS operatorId,
+               action, content, create_time AS createTime
+        FROM trade_refund_log
+        WHERE refund_id = #{refundId}
+        ORDER BY create_time ASC, log_id ASC
+    </select>
+
+</mapper>

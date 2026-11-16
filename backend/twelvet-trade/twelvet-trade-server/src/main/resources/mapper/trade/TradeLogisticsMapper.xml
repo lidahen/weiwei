@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.trade.server.mapper.TradeLogisticsMapper">
+
+    <select id="selectLogisticsByOrderId" resultType="map">
+        SELECT company, no, latest_node latestNode, trace_json traceJson
+        FROM trade_logistics
+        WHERE order_id = #{orderId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        ORDER BY cache_time DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectLogisticsByOrderIds" resultType="map">
+        SELECT t.order_id orderId, t.company, t.no, t.latest_node latestNode, t.trace_json traceJson
+        FROM trade_logistics t
+        WHERE t.order_id IN
+        <foreach collection="orderIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        <if test="tenantId != null">AND t.tenant_id = #{tenantId}</if>
+        AND t.cache_time = (
+            SELECT MAX(cache_time) FROM trade_logistics WHERE order_id = t.order_id
+        )
+    </select>
+
+    <insert id="insertLogistics">
+        INSERT INTO trade_logistics (order_id, company, no, latest_node, trace_json, cache_time
+        <if test="tenantId != null">, tenant_id</if>)
+        VALUES (#{orderId}, #{company}, #{no}, #{latestNode}, #{traceJson}, sysdate()
+        <if test="tenantId != null">, #{tenantId}</if>)
+    </insert>
+
+</mapper>

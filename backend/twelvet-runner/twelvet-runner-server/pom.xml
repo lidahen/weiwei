@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>twelvet-runner</artifactId>
+        <groupId>com.twelvet</groupId>
+        <version>3.5.4</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>twelvet-runner-server</artifactId>
+    <description>互助服务实现（任务/互助大厅/状态机）</description>
+    <dependencies>
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-runner-api</artifactId>
+            <version>${twelvet.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-datasource</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-log</artifactId>
+        </dependency>
+        <!-- IM 通知能力（状态流转发 system 消息，单 jar 进程内调用） -->
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-im-server</artifactId>
+            <version>${twelvet.version}</version>
+        </dependency>
+        <!-- 支付能力（接单/退款等场景调用 IPayOrderService） -->
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-payment-api</artifactId>
+            <version>${twelvet.version}</version>
+        </dependency>
+    </dependencies>
+</project>

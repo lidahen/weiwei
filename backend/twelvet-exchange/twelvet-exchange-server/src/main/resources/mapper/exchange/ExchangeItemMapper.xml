@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.exchange.server.mapper.ExchangeItemMapper">
+
+    <resultMap id="ItemResult" type="com.twelvet.exchange.api.domain.ExchangeItem">
+        <id property="id" column="id"/>
+        <result property="itemNo" column="item_no"/>
+        <result property="ownerId" column="owner_id"/>
+        <result property="title" column="title"/>
+        <result property="cover" column="cover"/>
+        <result property="images" column="images"/>
+        <result property="catL1" column="cat_l1"/>
+        <result property="catL2" column="cat_l2"/>
+        <result property="conditionLevel" column="condition_level"/>
+        <result property="estValue" column="est_value"/>
+        <result property="wantCats" column="want_cats"/>
+        <result property="wantDesc" column="want_desc"/>
+        <result property="acceptAny" column="accept_any"/>
+        <result property="deliveryMode" column="delivery_mode"/>
+        <result property="city" column="city"/>
+        <result property="location" column="location"/>
+        <result property="description" column="description"/>
+        <result property="status" column="status"/>
+        <result property="rejectReason" column="reject_reason"/>
+        <result property="viewCount" column="view_count"/>
+        <result property="offerCount" column="offer_count"/>
+        <result property="swapCount" column="swap_count"/>
+        <result property="hotScore" column="hot_score"/>
+        <result property="publishTime" column="publish_time"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="ownerName" column="owner_name"/>
+    </resultMap>
+
+    <sql id="itemCols">
+        id, item_no, owner_id, title, cover, images, cat_l1, cat_l2, condition_level, est_value,
+        want_cats, want_desc, accept_any, delivery_mode, city, location, description,
+        status, reject_reason, view_count, offer_count, swap_count, hot_score, publish_time,
+        create_by, create_time, update_time, tenant_id
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO twelve_exchange_item
+            (item_no, owner_id, title, cover, images, cat_l1, cat_l2, condition_level, est_value,
+             want_cats, want_desc, accept_any, delivery_mode, city, location, description,
+             status, create_by, create_time, update_time, tenant_id)
+        VALUES
+            (#{itemNo}, #{ownerId}, #{title}, #{cover}, #{images}, #{catL1}, #{catL2}, #{conditionLevel}, #{estValue},
+             #{wantCats}, #{wantDesc}, #{acceptAny}, #{deliveryMode}, #{city}, #{location}, #{description},
+             #{status}, #{createBy}, NOW(), NOW(), #{tenantId})
+    </insert>
+
+    <!-- 广场列表：onswap + hot_score 排序；keyword 走 FULLTEXT ngram（title/description） -->
+    <sql id="squareWhere">
+        WHERE status = 'onswap'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        <if test="catL1 != null and catL1 != ''">AND cat_l1 = #{catL1}</if>
+        <if test="conditionLevel != null and conditionLevel != ''">AND condition_level = #{conditionLevel}</if>
+        <if test="deliveryMode != null and deliveryMode != ''">
+            AND (delivery_mode = #{deliveryMode} OR delivery_mode = 'both')
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND MATCH(title, description) AGAINST(#{keyword} IN NATURAL LANGUAGE MODE)
+        </if>
+    </sql>
+
+    <select id="selectSquarePage" resultMap="ItemResult">
+        SELECT <include refid="itemCols"/>
+        FROM twelve_exchange_item
+        <include refid="squareWhere"/>
+        ORDER BY hot_score DESC, publish_time DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countSquarePage" resultType="long">
+        SELECT COUNT(*)
+        FROM twelve_exchange_item
+        <include refid="squareWhere"/>
+    </select>
+
+    <select id="selectById" resultMap="ItemResult">
+        SELECT <include refid="itemCols"/>
+        FROM twelve_exchange_item
+        WHERE id = #{itemId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </select>
+
+    <!-- 浏览数 +1（热度加权：浏览 +1，对齐动态 hot_score=互动加权的做法） -->
+    <update id="incrementViewCount">
+        UPDATE twelve_exchange_item
+        SET view_count = view_count + 1, hot_score = hot_score + 1, update_time = NOW()
+        WHERE id = #{itemId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 收到的意向数 +1（热度加权：意向 +3） -->
+    <update id="incrementOfferCount">
+        UPDATE twelve_exchange_item
+        SET offer_count = offer_count + 1, hot_score = hot_score + 3, update_time = NOW()
+        WHERE id = #{itemId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <select id="selectMyItems" resultMap="ItemResult">
+        SELECT <include refid="itemCols"/>
+        FROM twelve_exchange_item
+        WHERE owner_id = #{ownerId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        <if test="status != null and status != ''">AND status = #{status}</if>
+        ORDER BY create_time DESC
+        <if test="limit != null and limit > 0">LIMIT #{limit}</if>
+    </select>
+
+    <!-- 主人视角流转（onswap ↔ offshelf 下架/重新上架）：影响行数=0 表示状态不允许 -->
+    <update id="transitionStatus">
+        UPDATE twelve_exchange_item
+        SET status = #{toStatus}, update_time = NOW()
+        WHERE id = #{itemId} AND owner_id = #{ownerId} AND status = #{fromStatus}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 接受意向第二步：锁定 A 物品（onswap → locked） -->
+    <update id="lockItem">
+        UPDATE twelve_exchange_item
+        SET status = 'locked', update_time = NOW()
+        WHERE id = #{itemId} AND owner_id = #{ownerId} AND status = 'onswap'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 物品解锁（订单取消/裁决取消：locked → onswap） -->
+    <update id="unlockItem">
+        UPDATE twelve_exchange_item
+        SET status = 'onswap', update_time = NOW()
+        WHERE id = #{itemId} AND status = 'locked'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 交换完成：物品换出下架（locked → swapped，同时 swap_count+1） -->
+    <update id="markSwapped">
+        UPDATE twelve_exchange_item
+        SET status = 'swapped', swap_count = swap_count + 1, update_time = NOW()
+        WHERE id = #{itemId} AND status = 'locked'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <select id="selectOwnerSwapTotal" resultType="long">
+        SELECT COALESCE(SUM(swap_count), 0)
+        FROM twelve_exchange_item
+        WHERE owner_id = #{ownerId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </select>
+
+    <!-- 平台管理：分页查询（auditing 置顶，status 精确 + keyword 模糊 title/item_no） -->
+    <sql id="adminPageWhere">
+        <where>
+            <if test="tenantId != null">i.tenant_id = #{tenantId}</if>
+            <if test="status != null and status != ''">AND i.status = #{status}</if>
+            <if test="keyword != null and keyword != ''">
+                AND (i.title LIKE CONCAT('%', #{keyword}, '%')
+                  OR i.item_no LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+    </sql>
+
+    <select id="selectAdminPage" resultMap="ItemResult">
+        SELECT i.*, u.nick_name AS owner_name
+        FROM twelve_exchange_item i
+        LEFT JOIN sys_user u ON u.user_id = i.owner_id
+        <include refid="adminPageWhere"/>
+        ORDER BY CASE WHEN i.status = 'auditing' THEN 0 ELSE 1 END, i.id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countAdminPage" resultType="long">
+        SELECT COUNT(*)
+        FROM twelve_exchange_item i
+        <include refid="adminPageWhere"/>
+    </select>
+
+    <!-- 人工审核通过（auditing → onswap + publish_time，与 AI 自动通过同款语义） -->
+    <update id="passItem">
+        UPDATE twelve_exchange_item
+        SET status = 'onswap', publish_time = NOW(), update_time = NOW()
+        WHERE id = #{itemId} AND status = 'auditing'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 人工审核驳回（auditing → rejected + reject_reason） -->
+    <update id="rejectItem">
+        UPDATE twelve_exchange_item
+        SET status = 'rejected', reject_reason = #{reason}, update_time = NOW()
+        WHERE id = #{itemId} AND status = 'auditing'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 匹配召回命中的在架物品卡片（onswap 有效性过滤 + 主人昵称，recommend/wanters 共用） -->
+    <select id="selectOnswapByIds" resultMap="ItemResult">
+        SELECT i.*, u.nick_name AS owner_name
+        FROM twelve_exchange_item i
+        LEFT JOIN sys_user u ON u.user_id = i.owner_id
+        WHERE i.status = 'onswap'
+          AND i.id IN
+          <foreach item="id" collection="itemIds" open="(" separator="," close=")">#{id}</foreach>
+        <if test="tenantId != null">AND i.tenant_id = #{tenantId}</if>
+    </select>
+
+    <!-- 定时任务全局扫描在架物品（跨租户），租户隔离由下游逐行以物品自身 tenant_id 处理；
+         勿加 tenantId 条件：接口无该参数，MyBatis 绑定时会抛 Parameter not found -->
+    <select id="selectOnswapAll" resultType="map">
+        SELECT id AS itemId, tenant_id AS tenantId, owner_id AS ownerId, title
+        FROM twelve_exchange_item
+        WHERE status = 'onswap'
+        ORDER BY id ASC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="selectStatistics" resultType="map">
+        SELECT
+            COUNT(*) AS totalItems,
+            SUM(CASE WHEN status = 'onswap' THEN 1 ELSE 0 END) AS onswapCount,
+            SUM(CASE WHEN status = 'locked' THEN 1 ELSE 0 END) AS lockedCount,
+            SUM(CASE WHEN status = 'swapped' THEN 1 ELSE 0 END) AS swappedCount,
+            SUM(view_count) AS sumViewCount
+        FROM twelve_exchange_item
+        <where>
+            <if test="tenantId != null">tenant_id = #{tenantId}</if>
+        </where>
+    </select>
+
+    <select id="selectHotCategories" resultType="map">
+        SELECT cat_l1 AS catL1, COUNT(*) AS cnt
+        FROM twelve_exchange_item
+        WHERE status IN ('onswap', 'locked', 'swapped')
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        GROUP BY cat_l1
+        ORDER BY cnt DESC
+        <if test="limit != null and limit > 0">LIMIT #{limit}</if>
+    </select>
+
+</mapper>

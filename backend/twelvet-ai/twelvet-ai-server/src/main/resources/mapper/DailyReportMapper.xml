@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.ai.server.mapper.DailyReportMapper">
+
+    <resultMap type="com.twelvet.ai.api.domain.DailyReport" id="DailyReportResult">
+        <id property="id" column="id"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="reportDate" column="report_date"/>
+        <result property="title" column="title"/>
+        <result property="content" column="content"/>
+        <result property="statsJson" column="stats_json"/>
+        <result property="source" column="source"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <!-- 启用租户（日报生成范围）；复用 SysTenantMapper 的显式映射（项目未开驼峰自动映射） -->
+    <select id="selectEnabledTenants" resultMap="com.twelvet.system.api.mapper.SysTenantMapper.SysTenantResult">
+        select id, tenant_code, tenant_name, status, plan_code, expire_at, quota_product_max, quota_ai_call_day, create_time
+        from sys_tenant
+        where status = '0'
+        order by id asc
+    </select>
+
+    <!-- 聚合指标（只读跨模块表；统计区间 [startTime, endTime)，按租户过滤）
+         口径：新上架=product.create_time；成交=trade_order.paid_at；新帖=feed.create_time（已过审）；
+         互助完成=twelve_runner_task.confirm_time；累计完成=status='completed'；好评=twelve_runner_review.create_time；
+         套餐变动=sys_tenant_renew_order.paid_at（status=paid，按 tenant_code 归属） -->
+    <select id="selectAggStats" resultType="java.util.HashMap">
+        SELECT
+            (SELECT COUNT(*) FROM product p
+                WHERE p.tenant_id = #{tenantId}
+                  AND p.create_time &gt;= #{startTime} AND p.create_time &lt; #{endTime}) AS newProducts,
+            (SELECT COUNT(*) FROM trade_order o
+                WHERE o.tenant_id = #{tenantId}
+                  AND o.paid_at &gt;= #{startTime} AND o.paid_at &lt; #{endTime}) AS doneOrders,
+            (SELECT IFNULL(SUM(o.total_amount), 0) FROM trade_order o
+                WHERE o.tenant_id = #{tenantId}
+                  AND o.paid_at &gt;= #{startTime} AND o.paid_at &lt; #{endTime}) AS doneAmount,
+            (SELECT COUNT(*) FROM feed f
+                WHERE f.tenant_id = #{tenantId} AND f.audit_status = 'approved'
+                  AND f.create_time &gt;= #{startTime} AND f.create_time &lt; #{endTime}) AS newFeeds,
+            (SELECT COUNT(*) FROM twelve_runner_task t
+                WHERE t.tenant_id = #{tenantId}
+                  AND t.confirm_time &gt;= #{startTime} AND t.confirm_time &lt; #{endTime}) AS runnerDoneToday,
+            (SELECT COUNT(*) FROM twelve_runner_task t
+                WHERE t.tenant_id = #{tenantId} AND t.status = 'completed') AS runnerDoneTotal,
+            (SELECT COUNT(*) FROM twelve_runner_review r
+                WHERE r.tenant_id = #{tenantId}
+                  AND r.create_time &gt;= #{startTime} AND r.create_time &lt; #{endTime}) AS runnerNewReviews,
+            (SELECT IFNULL(ROUND(AVG(r.rating), 1), 0) FROM twelve_runner_review r
+                WHERE r.tenant_id = #{tenantId}
+                  AND r.create_time &gt;= #{startTime} AND r.create_time &lt; #{endTime}) AS runnerAvgRating,
+            (SELECT COUNT(*) FROM sys_tenant_renew_order ro
+                WHERE ro.tenant_code = #{tenantCode} AND ro.status = 'paid'
+                  AND ro.paid_at &gt;= #{startTime} AND ro.paid_at &lt; #{endTime}) AS renewCount
+    </select>
+
+    <!-- 浏览 Top 商品 -->
+    <select id="selectTopProducts" resultType="java.util.HashMap">
+        SELECT p.title AS title, COUNT(*) AS views
+        FROM product_view_log v
+        JOIN product p ON p.product_id = v.product_id
+        WHERE p.tenant_id = #{tenantId}
+          AND v.view_time &gt;= #{startTime} AND v.view_time &lt; #{endTime}
+        GROUP BY p.product_id, p.title
+        ORDER BY views DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 点赞热帖（内容截 50 字做摘要，不取全量正文） -->
+    <select id="selectHotFeeds" resultType="java.util.HashMap">
+        SELECT LEFT(f.content, 50) AS summary, COUNT(*) AS likes
+        FROM feed_like l
+        JOIN feed f ON f.feed_id = l.feed_id
+        WHERE f.tenant_id = #{tenantId}
+          AND l.create_time &gt;= #{startTime} AND l.create_time &lt; #{endTime}
+        GROUP BY f.feed_id, f.content
+        ORDER BY likes DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 推送范围：本租户在职用户 -->
+    <select id="selectPushUserIds" resultType="java.lang.Long">
+        SELECT user_id FROM sys_user
+        WHERE tenant_id = #{tenantId} AND status = 0 AND del_flag = '0'
+        ORDER BY user_id ASC
+    </select>
+
+    <!-- 发送者：本租户第一个在职用户 -->
+    <select id="selectSenderUserId" resultType="java.lang.Long">
+        SELECT user_id FROM sys_user
+        WHERE tenant_id = #{tenantId} AND status = 0 AND del_flag = '0'
+        ORDER BY user_id ASC
+        LIMIT 1
+    </select>
+
+    <select id="selectPage" resultMap="DailyReportResult">
+        select id, tenant_id, report_date, title, content, stats_json, source, create_time, update_time
+        from twelve_daily_report
+        where tenant_id = #{tenantId}
+        order by report_date desc, id desc
+    </select>
+
+    <select id="selectByIdAndTenant" resultMap="DailyReportResult">
+        select id, tenant_id, report_date, title, content, stats_json, source, create_time, update_time
+        from twelve_daily_report
+        where id = #{id} and tenant_id = #{tenantId}
+    </select>
+
+    <select id="selectByTenantAndDate" resultMap="DailyReportResult">
+        select id, tenant_id, report_date, title, content, stats_json, source, create_time, update_time
+        from twelve_daily_report
+        where tenant_id = #{tenantId} and report_date = #{reportDate}
+    </select>
+
+    <insert id="insert" parameterType="com.twelvet.ai.api.domain.DailyReport" useGeneratedKeys="true" keyProperty="id">
+        insert into twelve_daily_report (tenant_id, report_date, title, content, stats_json, source, create_time)
+        values (#{tenantId}, #{reportDate}, #{title}, #{content}, #{statsJson}, #{source}, NOW())
+    </insert>
+
+    <!-- 幂等覆盖：重复生成走 UPDATE（uk_report 冲突不插新行） -->
+    <update id="updateByTenantAndDate" parameterType="com.twelvet.ai.api.domain.DailyReport">
+        update twelve_daily_report
+        set title = #{title},
+            content = #{content},
+            stats_json = #{statsJson},
+            source = #{source},
+            update_time = NOW()
+        where tenant_id = #{tenantId} and report_date = #{reportDate}
+    </update>
+
+</mapper>

@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.trade.server.mapper.SettlementOrderMapper">
+
+    <resultMap type="SettlementOrder" id="SettlementResult">
+        <id property="settlementId" column="settlement_id"/>
+        <result property="orderId" column="order_id"/>
+        <result property="refundId" column="refund_id"/>
+        <result property="sellerId" column="seller_id"/>
+        <result property="buyerId" column="buyer_id"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="grossAmount" column="gross_amount"/>
+        <result property="commissionAmount" column="commission_amount"/>
+        <result property="netAmount" column="net_amount"/>
+        <result property="status" column="status"/>
+        <result property="doneAt" column="done_at"/>
+        <result property="holdUntil" column="hold_until"/>
+        <result property="settledAt" column="settled_at"/>
+        <result property="channel" column="channel"/>
+        <result property="channelTransNo" column="channel_trans_no"/>
+        <result property="failCount" column="fail_count"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="settlementCols">
+        settlement_id, order_id, refund_id, seller_id, buyer_id, tenant_id,
+        gross_amount, commission_amount, net_amount, status, done_at, hold_until, settled_at,
+        channel, channel_trans_no, fail_count, create_time, update_time
+    </sql>
+
+    <sql id="activeRefundExists">
+        NOT EXISTS (SELECT 1 FROM trade_refund r
+                    WHERE r.order_id = s.order_id
+                      AND r.status IN ('pending_seller','seller_agreed','buyer_returned','refunding','mediation'))
+    </sql>
+
+    <insert id="insertIgnore" parameterType="SettlementOrder" useGeneratedKeys="true" keyProperty="settlementId">
+        INSERT IGNORE INTO settlement_order
+            (order_id, seller_id, buyer_id, tenant_id, gross_amount, commission_amount, net_amount,
+             status, channel, create_time, update_time)
+        VALUES (#{orderId}, #{sellerId}, #{buyerId}, #{tenantId}, #{grossAmount}, #{commissionAmount},
+                #{netAmount}, #{status}, #{channel}, NOW(), NOW())
+    </insert>
+
+    <select id="selectByOrderId" resultMap="SettlementResult">
+        SELECT <include refid="settlementCols"/> FROM settlement_order WHERE order_id = #{orderId}
+    </select>
+
+    <select id="selectById" resultMap="SettlementResult">
+        SELECT <include refid="settlementCols"/> FROM settlement_order
+        WHERE settlement_id = #{settlementId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </select>
+
+    <!--
+      售后期届满扫描：订单 done、hold_until = done_at + holdDays 已到、卖家已实名、无进行中退款。
+      quartz 无租户上下文，故意不加租户条件（全租户扫描）。
+    -->
+    <select id="selectDueHoldings" resultMap="SettlementResult">
+        SELECT s.settlement_id, s.order_id, s.seller_id, s.tenant_id
+        FROM settlement_order s
+        JOIN trade_order o ON o.order_id = s.order_id
+        JOIN seller_account a ON a.seller_id = s.seller_id AND a.tenant_id = s.tenant_id
+        WHERE s.status = 'holding'
+          AND o.status = 'done' AND o.done_at IS NOT NULL
+          AND DATE_ADD(o.done_at, INTERVAL #{holdDays} DAY) &lt;= NOW()
+          AND a.kyc_status = 'verified'
+          AND <include refid="activeRefundExists"/>
+        ORDER BY s.settlement_id
+        LIMIT #{limit}
+    </select>
+
+    <!--
+      推进待打款：守卫 holding + 订单 done + 无进行中退款；0 行 = 退款/并发已抢占，调用方跳过。
+      done_at / hold_until 从 trade_order 派生（两处确认收货 SQL 都写 done_at）。
+    -->
+    <update id="markPending">
+        UPDATE settlement_order s JOIN trade_order o ON o.order_id = s.order_id
+        SET s.status = 'pending_settle', s.done_at = o.done_at,
+            s.hold_until = DATE_ADD(o.done_at, INTERVAL #{holdDays} DAY), s.update_time = NOW()
+        WHERE s.settlement_id = #{settlementId} AND s.status = 'holding'
+          AND o.status = 'done' AND o.done_at IS NOT NULL
+          AND <include refid="activeRefundExists"/>
+    </update>
+
+    <select id="selectPendingPayout" resultMap="SettlementResult">
+        SELECT s.settlement_id, s.order_id, s.seller_id, s.tenant_id, s.net_amount, s.channel
+        FROM settlement_order s
+        JOIN seller_account a ON a.seller_id = s.seller_id AND a.tenant_id = s.tenant_id
+        WHERE s.status = 'pending_settle'
+          AND a.kyc_status = 'verified' AND a.frozen = 0
+          AND s.fail_count &lt; #{maxFailCount}
+        ORDER BY s.settlement_id
+        LIMIT #{limit}
+    </select>
+
+    <update id="markSettled">
+        UPDATE settlement_order
+        SET status = 'settled', settled_at = NOW(), channel = #{channel},
+            channel_trans_no = #{channelTransNo}, update_time = NOW()
+        WHERE settlement_id = #{settlementId} AND status = 'pending_settle'
+    </update>
+
+    <update id="markClosed">
+        UPDATE settlement_order SET status = 'closed', refund_id = #{refundId}, update_time = NOW()
+        WHERE order_id = #{orderId} AND status IN ('holding','pending_settle')
+    </update>
+
+    <update id="markClawback">
+        UPDATE settlement_order SET status = 'clawback', refund_id = #{refundId}, update_time = NOW()
+        WHERE settlement_id = #{settlementId} AND status IN ('settled','withdrawn')
+    </update>
+
+    <update id="incrementFailCount">
+        UPDATE settlement_order SET fail_count = fail_count + 1, update_time = NOW()
+        WHERE settlement_id = #{settlementId}
+    </update>
+
+    <select id="selectAdminPage" resultMap="SettlementResult">
+        SELECT <include refid="settlementCols"/> FROM settlement_order
+        <where>
+            <if test="status != null and status != ''">AND status = #{status}</if>
+            <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        </where>
+        ORDER BY settlement_id DESC
+    </select>
+
+    <!-- ===== 每日对账查询 =====
+         trade_pay.order_id 是商品订单/跑腿任务/续费共用的多态列（实测 17–21 撞号，见 TradePayLookupMapper.xml）。
+         对账关联支付单必须按 biz_type='trade' 收窄（2026-11-03 消歧；pay_user_id 与 tenant_id 收窄保留为防御）。
+         三个原先忽略 bizDate 的查询已按业务日限定，避免历史差异每天重复入队。
+    -->
+
+    <select id="selectMissingSettlement" resultType="map">
+        SELECT o.order_id AS orderId, o.seller_id AS sellerId, o.tenant_id AS tenantId,
+               p.pay_amount AS channelAmount
+        FROM trade_order o
+        JOIN trade_pay p ON p.order_id = o.order_id AND p.status = 'paid' AND p.biz_type = 'trade'
+            AND p.pay_user_id = o.buyer_id AND p.tenant_id = o.tenant_id
+        LEFT JOIN settlement_order s ON s.order_id = o.order_id
+        WHERE s.settlement_id IS NULL AND DATE(o.paid_at) = #{bizDate}
+        LIMIT 1000
+    </select>
+
+    <select id="selectPhantomSettlement" resultType="map">
+        SELECT s.settlement_id AS settlementId, s.order_id AS orderId, s.seller_id AS sellerId,
+               s.tenant_id AS tenantId, s.gross_amount AS platformAmount
+        FROM settlement_order s
+        LEFT JOIN trade_pay p ON p.order_id = s.order_id AND p.status = 'paid' AND p.biz_type = 'trade'
+            AND p.pay_user_id = s.buyer_id AND p.tenant_id = s.tenant_id
+        WHERE p.pay_id IS NULL AND DATE(s.create_time) = #{bizDate}
+        LIMIT 1000
+    </select>
+
+    <select id="selectAmountMismatch" resultType="map">
+        SELECT s.settlement_id AS settlementId, s.order_id AS orderId, s.seller_id AS sellerId,
+               s.tenant_id AS tenantId, s.gross_amount AS platformAmount, p.pay_amount AS channelAmount
+        FROM settlement_order s
+        JOIN trade_pay p ON p.order_id = s.order_id AND p.status = 'paid' AND p.biz_type = 'trade'
+            AND p.pay_user_id = s.buyer_id AND p.tenant_id = s.tenant_id
+        WHERE s.gross_amount &lt;&gt; p.pay_amount
+          AND DATE(s.create_time) = #{bizDate}
+        LIMIT 1000
+    </select>
+
+    <select id="selectRefundStatusMismatch" resultType="map">
+        SELECT r.refund_id AS refundId, r.order_id AS orderId, s.settlement_id AS settlementId,
+               s.seller_id AS sellerId, s.tenant_id AS tenantId, s.status AS settlementStatus
+        FROM trade_refund r
+        JOIN settlement_order s ON s.order_id = r.order_id
+        WHERE r.status = 'refund_success' AND s.status NOT IN ('closed','clawback')
+          AND DATE(r.update_time) = #{bizDate}
+        LIMIT 1000
+    </select>
+
+    <select id="selectDuplicateSettlement" resultType="map">
+        SELECT order_id AS orderId, COUNT(*) AS cnt, MIN(tenant_id) AS tenantId, MIN(seller_id) AS sellerId
+        FROM settlement_order
+        WHERE DATE(create_time) = #{bizDate}
+        GROUP BY order_id
+        HAVING COUNT(*) &gt; 1
+        LIMIT 1000
+    </select>
+
+</mapper>

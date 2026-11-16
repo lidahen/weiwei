@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.product.server.mapper.FavoriteMapper">
+
+    <resultMap type="Product" id="FavoriteProductResult">
+        <id property="productId" column="product_id"/>
+        <result property="title" column="title"/>
+        <result property="cover" column="cover"/>
+        <result property="price" column="price"/>
+        <result property="originalPrice" column="original_price"/>
+        <result property="condition" column="condition"/>
+        <result property="city" column="city"/>
+        <result property="status" column="status"/>
+        <result property="sellerNickName" column="sellerNickName"/>
+        <result property="sellerAvatar" column="sellerAvatar"/>
+    </resultMap>
+
+    <select id="selectFavoriteProductList" resultMap="FavoriteProductResult">
+        SELECT p.product_id, p.title, p.cover, p.price, p.original_price,
+               p.`condition`, p.city, p.status,
+               u.nick_name sellerNickName, u.avatar sellerAvatar,
+               f.fav_time
+        FROM product_favorite f
+        JOIN product p ON f.product_id = p.product_id
+        LEFT JOIN sys_user u ON p.seller_id = u.user_id
+        WHERE f.user_id = #{userId}
+        <if test="tenantId != null">AND f.tenant_id = #{tenantId}</if>
+        ORDER BY f.fav_time DESC
+    </select>
+
+    <select id="countFavorites" resultType="Long">
+        SELECT COUNT(*) FROM product_favorite WHERE user_id = #{userId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </select>
+
+    <insert id="insertFavorite">
+        INSERT INTO product_favorite (user_id, product_id, original_price, fav_time
+        <if test="tenantId != null">, tenant_id</if>)
+        VALUES (#{userId}, #{productId}, #{originalPrice}, NOW()
+        <if test="tenantId != null">, #{tenantId}</if>)
+    </insert>
+
+    <delete id="deleteFavorite">
+        DELETE FROM product_favorite WHERE user_id = #{userId} AND product_id = #{productId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </delete>
+
+    <update id="incrementWantCount">
+        UPDATE product SET want_count = want_count + 1 WHERE product_id = #{productId}
+    </update>
+
+    <!-- ====== 收藏降价提醒（docs/二手市场首页推荐设计.md 个性化改造） ====== -->
+
+    <select id="selectPriceDrops" resultType="map">
+        SELECT f.user_id AS userId, f.product_id AS productId,
+               f.original_price AS snapPrice, p.price AS newPrice, p.title,
+               p.tenant_id AS tenantId
+        FROM product_favorite f
+        JOIN product p ON p.product_id = f.product_id
+        WHERE p.status = 'onsale'
+          AND f.original_price IS NOT NULL
+          AND p.price &lt; f.original_price
+        <if test="tenantId != null">AND p.tenant_id = #{tenantId}</if>
+    </select>
+
+    <!-- 存量收藏播种基线：original_price 为空取现价（不通知），此后降价才开始对比 -->
+    <update id="seedMissingSnapshots">
+        UPDATE product_favorite f
+        JOIN product p ON p.product_id = f.product_id
+        SET f.original_price = p.price
+        WHERE f.original_price IS NULL AND p.status = 'onsale'
+        <if test="tenantId != null">AND p.tenant_id = #{tenantId}</if>
+    </update>
+
+    <update id="updateFavoriteSnapshot">
+        UPDATE product_favorite SET original_price = #{price}
+        WHERE user_id = #{userId} AND product_id = #{productId}
+    </update>
+
+    <select id="selectSenderUserId" resultType="Long">
+        SELECT user_id FROM sys_user
+        WHERE tenant_id = #{tenantId} AND status = 0 AND del_flag = '0'
+        ORDER BY user_id ASC
+        LIMIT 1
+    </select>
+
+    <update id="decrementWantCount">
+        UPDATE product SET want_count = GREATEST(want_count - 1, 0) WHERE product_id = #{productId}
+    </update>
+
+    <select id="selectTenantUserIds" resultType="long">
+        SELECT user_id FROM sys_user
+        WHERE tenant_id = #{tenantId} AND status = 0 AND del_flag = '0'
+        ORDER BY user_id ASC
+    </select>
+
+</mapper>

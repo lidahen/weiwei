@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.product.server.mapper.FunnelEventMapper">
+
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO funnel_event
+            (tenant_id, event_type, user_id, role, product_id, category, ai_assisted,
+             scene, biz_id, event_key, create_time)
+        VALUES
+            (#{e.tenantId}, #{e.eventType}, #{e.userId}, #{e.role}, #{e.productId},
+             #{e.category}, #{e.aiAssisted}, #{e.scene}, #{e.bizId}, #{e.eventKey}, NOW())
+    </insert>
+
+    <insert id="insertBatch">
+        INSERT IGNORE INTO funnel_event
+            (tenant_id, event_type, user_id, role, product_id, category, ai_assisted,
+             scene, biz_id, event_key, create_time)
+        VALUES
+        <foreach collection="list" item="it" separator=",">
+            (#{it.tenantId}, #{it.eventType}, #{it.userId}, #{it.role}, #{it.productId},
+             #{it.category}, #{it.aiAssisted}, #{it.scene}, #{it.bizId}, #{it.eventKey}, NOW())
+        </foreach>
+    </insert>
+
+    <select id="selectDaily" resultType="map">
+        SELECT DATE_FORMAT(create_time, '%Y-%m-%d')      AS statDate,
+               event_type                                AS eventType,
+               COUNT(*)                                  AS count,
+               COUNT(DISTINCT user_id)                   AS uv
+        FROM funnel_event
+        WHERE create_time &gt;= DATE_SUB(CURDATE(), INTERVAL #{days} DAY)
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        GROUP BY statDate, eventType
+        ORDER BY statDate DESC, eventType
+    </select>
+
+    <select id="selectSummary" resultType="map">
+        SELECT event_type                                AS eventType,
+               COUNT(*)                                  AS count,
+               COUNT(DISTINCT user_id)                   AS uv
+        FROM funnel_event
+        WHERE create_time &gt;= DATE_SUB(CURDATE(), INTERVAL #{days} DAY)
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        GROUP BY eventType
+    </select>
+
+    <select id="selectTenants" resultType="map">
+        SELECT e.tenant_id                               AS tenantId,
+               t.tenant_name                             AS tenantName
+        FROM funnel_event e
+        JOIN sys_tenant t ON t.id = e.tenant_id
+        WHERE e.tenant_id IS NOT NULL
+          AND e.create_time &gt;= DATE_SUB(CURDATE(), INTERVAL #{days} DAY)
+        GROUP BY e.tenant_id, t.tenant_name
+        ORDER BY e.tenant_id
+    </select>
+
+</mapper>

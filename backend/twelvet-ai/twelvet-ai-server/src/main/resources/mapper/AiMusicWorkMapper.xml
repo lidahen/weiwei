@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.ai.server.mapper.AiMusicWorkMapper">
+
+    <resultMap type="com.twelvet.ai.api.domain.AiMusicWork" id="AiMusicWorkResult">
+        <result property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="type" column="type"/>
+        <result property="title" column="title"/>
+        <result property="styleTags" column="style_tags"/>
+        <result property="bpm" column="bpm"/>
+        <result property="keySignature" column="key_signature"/>
+        <result property="lyrics" column="lyrics"/>
+        <result property="prompt" column="prompt"/>
+        <result property="voiceProfileId" column="voice_profile_id"/>
+        <result property="vendor" column="vendor"/>
+        <result property="vendorTaskId" column="vendor_task_id"/>
+        <result property="vendorVoiceId" column="vendor_voice_id"/>
+        <result property="audioUrl" column="audio_url"/>
+        <result property="audioDurationMs" column="audio_duration_ms"/>
+        <result property="coverUrl" column="cover_url"/>
+        <result property="derivedAudio" column="derived_audio"/>
+        <result property="status" column="status"/>
+        <result property="errorMsg" column="error_msg"/>
+        <result property="quotaCost" column="quota_cost"/>
+        <result property="parentWorkId" column="parent_work_id"/>
+        <result property="completedAt" column="completed_at"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="delFlag" column="del_flag"/>
+    </resultMap>
+
+    <sql id="selectAiMusicWorkVo">
+        select id, user_id, type, title, style_tags, bpm, key_signature, lyrics, prompt, voice_profile_id, vendor, vendor_task_id, vendor_voice_id, audio_url, audio_duration_ms, cover_url, derived_audio, status, error_msg, quota_cost, parent_work_id, completed_at, create_by, create_time, update_time, del_flag
+        from ai_music_work
+    </sql>
+
+    <select id="selectAiMusicWorkById" parameterType="Long" resultMap="AiMusicWorkResult">
+        <include refid="selectAiMusicWorkVo"/>
+        where id = #{id} and del_flag = 0
+    </select>
+
+    <select id="selectAiMusicWorkByVendorTaskId" parameterType="String" resultMap="AiMusicWorkResult">
+        <include refid="selectAiMusicWorkVo"/>
+        where vendor_task_id = #{vendorTaskId} and del_flag = 0
+        order by id desc limit 1
+    </select>
+
+    <select id="selectAiMusicWorkList" parameterType="com.twelvet.ai.api.domain.AiMusicWork" resultMap="AiMusicWorkResult">
+        <include refid="selectAiMusicWorkVo"/>
+        <where>
+            del_flag = 0
+            <if test="userId != null">AND user_id = #{userId}</if>
+            <if test="status != null">AND status = #{status}</if>
+            <if test="type != null">AND type = #{type}</if>
+            <if test="title != null and title != ''">AND title like concat('%', #{title}, '%')</if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <insert id="insertAiMusicWork" parameterType="com.twelvet.ai.api.domain.AiMusicWork" useGeneratedKeys="true" keyProperty="id">
+        insert into ai_music_work
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="userId != null">user_id,</if>
+            <if test="type != null">type,</if>
+            <if test="title != null and title != ''">title,</if>
+            <if test="styleTags != null and styleTags != ''">style_tags,</if>
+            <if test="bpm != null">bpm,</if>
+            <if test="keySignature != null and keySignature != ''">key_signature,</if>
+            <if test="lyrics != null">lyrics,</if>
+            <if test="prompt != null">prompt,</if>
+            <if test="voiceProfileId != null">voice_profile_id,</if>
+            <if test="vendor != null and vendor != ''">vendor,</if>
+            <if test="vendorTaskId != null and vendorTaskId != ''">vendor_task_id,</if>
+            <if test="vendorVoiceId != null and vendorVoiceId != ''">vendor_voice_id,</if>
+            <if test="audioUrl != null and audioUrl != ''">audio_url,</if>
+            <if test="audioDurationMs != null">audio_duration_ms,</if>
+            <if test="coverUrl != null and coverUrl != ''">cover_url,</if>
+            <if test="derivedAudio != null">derived_audio,</if>
+            <if test="status != null">status,</if>
+            <if test="errorMsg != null">error_msg,</if>
+            <if test="quotaCost != null">quota_cost,</if>
+            <if test="parentWorkId != null">parent_work_id,</if>
+            create_time,
+            update_time
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="userId != null">#{userId},</if>
+            <if test="type != null">#{type},</if>
+            <if test="title != null and title != ''">#{title},</if>
+            <if test="styleTags != null and styleTags != ''">#{styleTags},</if>
+            <if test="bpm != null">#{bpm},</if>
+            <if test="keySignature != null and keySignature != ''">#{keySignature},</if>
+            <if test="lyrics != null">#{lyrics},</if>
+            <if test="prompt != null">#{prompt},</if>
+            <if test="voiceProfileId != null">#{voiceProfileId},</if>
+            <if test="vendor != null and vendor != ''">#{vendor},</if>
+            <if test="vendorTaskId != null and vendorTaskId != ''">#{vendorTaskId},</if>
+            <if test="vendorVoiceId != null and vendorVoiceId != ''">#{vendorVoiceId},</if>
+            <if test="audioUrl != null and audioUrl != ''">#{audioUrl},</if>
+            <if test="audioDurationMs != null">#{audioDurationMs},</if>
+            <if test="coverUrl != null and coverUrl != ''">#{coverUrl},</if>
+            <if test="derivedAudio != null">#{derivedAudio},</if>
+            <if test="status != null">#{status},</if>
+            <if test="errorMsg != null">#{errorMsg},</if>
+            <if test="quotaCost != null">#{quotaCost},</if>
+            <if test="parentWorkId != null">#{parentWorkId},</if>
+            now(),
+            now()
+        </trim>
+    </insert>
+
+    <update id="updateAiMusicWork" parameterType="com.twelvet.ai.api.domain.AiMusicWork">
+        update ai_music_work
+        <set>
+            <if test="title != null and title != ''">title = #{title},</if>
+            <if test="styleTags != null and styleTags != ''">style_tags = #{styleTags},</if>
+            <if test="lyrics != null">lyrics = #{lyrics},</if>
+            update_time = now()
+        </set>
+        where id = #{id}
+    </update>
+
+    <update id="updateAiMusicWorkStatus" parameterType="com.twelvet.ai.api.domain.AiMusicWork">
+        update ai_music_work
+        <set>
+            <if test="status != null">status = #{status},</if>
+            <if test="audioUrl != null and audioUrl != ''">audio_url = #{audioUrl},</if>
+            <if test="audioDurationMs != null">audio_duration_ms = #{audioDurationMs},</if>
+            <if test="coverUrl != null and coverUrl != ''">cover_url = #{coverUrl},</if>
+            <if test="derivedAudio != null">derived_audio = #{derivedAudio},</if>
+            <if test="lyrics != null">lyrics = #{lyrics},</if>
+            <if test="errorMsg != null">error_msg = #{errorMsg},</if>
+            completed_at = case when #{status} = 2 then now() else completed_at end,
+            update_time = now()
+        </set>
+        where id = #{id}
+    </update>
+
+    <update id="deleteAiMusicWorkById" parameterType="Long">
+        update ai_music_work set del_flag = 1, update_time = now() where id = #{id}
+    </update>
+
+</mapper>

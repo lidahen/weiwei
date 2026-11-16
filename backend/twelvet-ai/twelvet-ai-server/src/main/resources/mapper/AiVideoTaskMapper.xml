@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.ai.server.mapper.AiVideoTaskMapper">
+
+    <resultMap type="com.twelvet.ai.api.domain.AiVideoTask" id="AiVideoTaskResult">
+        <result property="taskId" column="task_id"/>
+        <result property="modelId" column="model_id"/>
+        <result property="agnesTaskId" column="agnes_task_id"/>
+        <result property="agnesVideoId" column="agnes_video_id"/>
+        <result property="prompt" column="prompt"/>
+        <result property="genType" column="gen_type"/>
+        <result property="inputImages" column="input_images"/>
+        <result property="width" column="width"/>
+        <result property="height" column="height"/>
+        <result property="numFrames" column="num_frames"/>
+        <result property="frameRate" column="frame_rate"/>
+        <result property="negativePrompt" column="negative_prompt"/>
+        <result property="seed" column="seed"/>
+        <result property="status" column="status"/>
+        <result property="progress" column="progress"/>
+        <result property="resultUrl" column="result_url"/>
+        <result property="videoSeconds" column="video_seconds"/>
+        <result property="videoSize" column="video_size"/>
+        <result property="errorMsg" column="error_msg"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="delFlag" column="del_flag"/>
+    </resultMap>
+
+    <sql id="selectAiVideoTaskVo">
+        select task_id, model_id, agnes_task_id, agnes_video_id, prompt, gen_type, input_images, width, height, num_frames, frame_rate, negative_prompt, seed, status, progress, result_url, video_seconds, video_size, error_msg, create_by, create_time, update_time, del_flag
+        from ai_video_task
+    </sql>
+
+    <select id="selectAiVideoTaskById" parameterType="Long" resultMap="AiVideoTaskResult">
+        <include refid="selectAiVideoTaskVo"/>
+        where task_id = #{taskId} and del_flag = 0
+    </select>
+
+    <select id="selectAiVideoTaskList" parameterType="com.twelvet.ai.api.domain.AiVideoTask" resultMap="AiVideoTaskResult">
+        <include refid="selectAiVideoTaskVo"/>
+        <where>
+            del_flag = 0
+            <if test="modelId != null">
+                AND model_id = #{modelId}
+            </if>
+            <if test="prompt != null and prompt != ''">
+                AND prompt like concat('%', #{prompt}, '%')
+            </if>
+            <if test="genType != null and genType != ''">
+                AND gen_type = #{genType}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+        <!-- task_id 自增单调：历史行 create_time 可能为 NULL（ai-service 直写），按 create_time 排序会沉底 -->
+        order by task_id desc
+    </select>
+
+    <insert id="insertAiVideoTask" parameterType="com.twelvet.ai.api.domain.AiVideoTask" useGeneratedKeys="true" keyProperty="taskId">
+        insert into ai_video_task
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="modelId != null">model_id,</if>
+            <if test="agnesTaskId != null and agnesTaskId != ''">agnes_task_id,</if>
+            <if test="agnesVideoId != null and agnesVideoId != ''">agnes_video_id,</if>
+            <if test="prompt != null and prompt != ''">prompt,</if>
+            <if test="genType != null and genType != ''">gen_type,</if>
+            <if test="inputImages != null and inputImages != ''">input_images,</if>
+            <if test="width != null">width,</if>
+            <if test="height != null">height,</if>
+            <if test="numFrames != null">num_frames,</if>
+            <if test="frameRate != null">frame_rate,</if>
+            <if test="negativePrompt != null and negativePrompt != ''">negative_prompt,</if>
+            <if test="seed != null">seed,</if>
+            <if test="status != null and status != ''">status,</if>
+            <if test="progress != null">progress,</if>
+            <if test="resultUrl != null and resultUrl != ''">result_url,</if>
+            <if test="videoSeconds != null and videoSeconds != ''">video_seconds,</if>
+            <if test="videoSize != null and videoSize != ''">video_size,</if>
+            <if test="errorMsg != null and errorMsg != ''">error_msg,</if>
+            <if test="createBy != null">create_by,</if>
+            create_time
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="modelId != null">#{modelId},</if>
+            <if test="agnesTaskId != null and agnesTaskId != ''">#{agnesTaskId},</if>
+            <if test="agnesVideoId != null and agnesVideoId != ''">#{agnesVideoId},</if>
+            <if test="prompt != null and prompt != ''">#{prompt},</if>
+            <if test="genType != null and genType != ''">#{genType},</if>
+            <if test="inputImages != null and inputImages != ''">#{inputImages},</if>
+            <if test="width != null">#{width},</if>
+            <if test="height != null">#{height},</if>
+            <if test="numFrames != null">#{numFrames},</if>
+            <if test="frameRate != null">#{frameRate},</if>
+            <if test="negativePrompt != null and negativePrompt != ''">#{negativePrompt},</if>
+            <if test="seed != null">#{seed},</if>
+            <if test="status != null and status != ''">#{status},</if>
+            <if test="progress != null">#{progress},</if>
+            <if test="resultUrl != null and resultUrl != ''">#{resultUrl},</if>
+            <if test="videoSeconds != null and videoSeconds != ''">#{videoSeconds},</if>
+            <if test="videoSize != null and videoSize != ''">#{videoSize},</if>
+            <if test="errorMsg != null and errorMsg != ''">#{errorMsg},</if>
+            <if test="createBy != null">#{createBy},</if>
+            sysdate()
+        </trim>
+    </insert>
+
+    <update id="updateAiVideoTask" parameterType="com.twelvet.ai.api.domain.AiVideoTask">
+        update ai_video_task
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="modelId != null">model_id = #{modelId},</if>
+            <if test="agnesTaskId != null and agnesTaskId != ''">agnes_task_id = #{agnesTaskId},</if>
+            <if test="agnesVideoId != null and agnesVideoId != ''">agnes_video_id = #{agnesVideoId},</if>
+            <if test="prompt != null and prompt != ''">prompt = #{prompt},</if>
+            <if test="genType != null and genType != ''">gen_type = #{genType},</if>
+            <if test="inputImages != null and inputImages != ''">input_images = #{inputImages},</if>
+            <if test="width != null">width = #{width},</if>
+            <if test="height != null">height = #{height},</if>
+            <if test="numFrames != null">num_frames = #{numFrames},</if>
+            <if test="frameRate != null">frame_rate = #{frameRate},</if>
+            <if test="negativePrompt != null and negativePrompt != ''">negative_prompt = #{negativePrompt},</if>
+            <if test="seed != null">seed = #{seed},</if>
+            <if test="status != null and status != ''">status = #{status},</if>
+            <if test="progress != null">progress = #{progress},</if>
+            <if test="resultUrl != null and resultUrl != ''">result_url = #{resultUrl},</if>
+            <if test="videoSeconds != null and videoSeconds != ''">video_seconds = #{videoSeconds},</if>
+            <if test="videoSize != null and videoSize != ''">video_size = #{videoSize},</if>
+            <if test="errorMsg != null and errorMsg != ''">error_msg = #{errorMsg},</if>
+            update_time = sysdate()
+        </trim>
+        where task_id = #{taskId}
+    </update>
+
+    <update id="deleteAiVideoTaskById" parameterType="Long">
+        update ai_video_task set del_flag = 1 where task_id = #{taskId}
+    </update>
+
+    <update id="deleteAiVideoTaskByIds" parameterType="Long">
+        update ai_video_task set del_flag = 1 where task_id in
+        <foreach item="taskId" collection="array" open="(" separator="," close=")">
+            #{taskId}
+        </foreach>
+    </update>
+
+</mapper>

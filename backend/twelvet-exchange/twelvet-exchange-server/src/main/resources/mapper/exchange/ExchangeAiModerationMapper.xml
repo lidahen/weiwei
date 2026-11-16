@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.exchange.server.mapper.ExchangeAiModerationMapper">
+
+    <!-- 平台视角（不传 tenant_id 过滤）：Quartz 任务显式按行携带 tenant_id 处理 -->
+    <select id="selectAuditingItems" resultType="map">
+        SELECT id          AS itemId,
+               tenant_id   AS tenantId,
+               owner_id    AS ownerId,
+               title,
+               description,
+               images,
+               cat_l1      AS catL1,
+               cat_l2      AS catL2
+        FROM twelve_exchange_item
+        WHERE status = 'auditing'
+        ORDER BY create_time ASC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectLatestModeration" resultType="map">
+        SELECT risk_level AS riskLevel, action, summary, create_time AS createTime
+        FROM ai_moderation_log
+        WHERE biz_type = #{bizType} AND biz_id = #{bizId}
+        ORDER BY log_id DESC
+        LIMIT 1
+    </select>
+
+    <select id="countModerationErrors" resultType="int">
+        SELECT COUNT(*) FROM ai_moderation_log
+        WHERE biz_type = #{bizType} AND biz_id = #{bizId} AND action = 'error'
+    </select>
+
+    <insert id="insertModerationLog">
+        INSERT INTO ai_moderation_log
+            (tenant_id, biz_type, biz_id, risk_level, action, violations, summary, model_name, error_msg, create_time)
+        VALUES
+            (#{tenantId}, #{bizType}, #{bizId}, #{riskLevel}, #{action}, #{violations}, #{summary},
+             #{modelName}, #{errorMsg}, NOW())
+    </insert>
+
+    <!-- AI 自动通过：onswap + publish_time（与人工 passItem 同款语义） -->
+    <update id="approveItemAuto">
+        UPDATE twelve_exchange_item
+        SET status = 'onswap', publish_time = NOW(), update_time = NOW()
+        WHERE id = #{itemId} AND tenant_id = #{tenantId}
+    </update>
+
+    <!-- AI 自动驳回：rejected + reject_reason 供主人在前端看到原因 -->
+    <update id="rejectItemAuto">
+        UPDATE twelve_exchange_item
+        SET status = 'rejected', reject_reason = #{reason}, update_time = NOW()
+        WHERE id = #{itemId} AND tenant_id = #{tenantId}
+    </update>
+
+    <!-- 租户系统发送人（IM system 通知用，与商品初审 FavoriteMapper.selectSenderUserId 同款） -->
+    <select id="selectSenderUserId" resultType="Long">
+        SELECT user_id FROM sys_user
+        WHERE tenant_id = #{tenantId} AND status = 0 AND del_flag = '0'
+        ORDER BY user_id ASC
+        LIMIT 1
+    </select>
+
+</mapper>

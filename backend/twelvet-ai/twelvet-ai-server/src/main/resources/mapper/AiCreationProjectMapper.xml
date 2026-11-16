@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.ai.server.mapper.AiCreationProjectMapper">
+
+    <resultMap type="com.twelvet.ai.api.domain.AiCreationProject" id="AiCreationProjectResult">
+        <result property="projectId" column="project_id"/>
+        <result property="title" column="title"/>
+        <result property="sourceType" column="source_type"/>
+        <result property="templateId" column="template_id"/>
+        <result property="personaId" column="persona_id"/>
+        <result property="topic" column="topic"/>
+        <result property="scriptText" column="script_text"/>
+        <result property="status" column="status"/>
+        <result property="finalVideoUrl" column="final_video_url"/>
+        <result property="coverUrl" column="cover_url"/>
+        <result property="errorMsg" column="error_msg"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="delFlag" column="del_flag"/>
+    </resultMap>
+
+    <sql id="selectAiCreationProjectVo">
+        select project_id, title, source_type, template_id, persona_id, topic, script_text, status, final_video_url, cover_url, error_msg, create_by, create_time, update_time, del_flag
+        from ai_creation_project
+    </sql>
+
+    <select id="selectAiCreationProjectById" parameterType="Long" resultMap="AiCreationProjectResult">
+        <include refid="selectAiCreationProjectVo"/>
+        where project_id = #{projectId} and del_flag = 0
+    </select>
+
+    <select id="selectAiCreationProjectList" parameterType="com.twelvet.ai.api.domain.AiCreationProject" resultMap="AiCreationProjectResult">
+        <include refid="selectAiCreationProjectVo"/>
+        <where>
+            del_flag = 0
+            <if test="title != null and title != ''">
+                AND title like concat('%', #{title}, '%')
+            </if>
+            <if test="sourceType != null and sourceType != ''">
+                AND source_type = #{sourceType}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+        <!-- project_id 自增单调（ai-service 直写，create_time 可能为 NULL），按 ID 倒序 -->
+        order by project_id desc
+    </select>
+
+    <update id="deleteAiCreationProjectByIds" parameterType="Long">
+        update ai_creation_project set del_flag = 1 where project_id in
+        <foreach item="projectId" collection="array" open="(" separator="," close=")">
+            #{projectId}
+        </foreach>
+    </update>
+
+</mapper>

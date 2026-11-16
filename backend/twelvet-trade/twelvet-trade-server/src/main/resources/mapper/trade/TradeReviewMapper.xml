@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.trade.server.mapper.TradeReviewMapper">
+
+    <resultMap type="TradeReview" id="ReviewResult">
+        <id property="reviewId" column="review_id"/>
+        <result property="orderId" column="order_id"/>
+        <result property="role" column="role"/>
+        <result property="reviewerId" column="reviewer_id"/>
+        <result property="revieweeId" column="reviewee_id"/>
+        <result property="productId" column="product_id"/>
+        <result property="overallScore" column="overall_score"/>
+        <result property="content" column="content"/>
+        <result property="images" column="images"/>
+        <result property="tags" column="tags"/>
+        <result property="anonymous" column="anonymous"/>
+        <result property="status" column="status"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="createTime" column="create_time"/>
+        <result property="reviewerNickName" column="reviewer_nick_name"/>
+        <result property="reviewerAvatar" column="reviewer_avatar"/>
+    </resultMap>
+
+    <!-- C 端查询片段：匿名评价在 SQL 层脱敏 -->
+    <sql id="selectReviewVo">
+        SELECT r.review_id, r.order_id, r.role, r.reviewer_id, r.reviewee_id, r.product_id,
+               r.overall_score, r.content, r.images, r.tags, r.anonymous, r.status, r.tenant_id, r.create_time,
+               CASE WHEN r.anonymous = 1 THEN '匿名用户' ELSE u.nick_name END reviewer_nick_name,
+               CASE WHEN r.anonymous = 1 THEN NULL ELSE u.avatar END reviewer_avatar
+        FROM trade_review r
+        LEFT JOIN sys_user u ON r.reviewer_id = u.user_id
+    </sql>
+
+    <insert id="insertReview" parameterType="TradeReview" useGeneratedKeys="true" keyProperty="reviewId">
+        INSERT INTO trade_review (order_id, role, reviewer_id, reviewee_id,
+                                  <if test="productId != null">product_id,</if>
+                                  overall_score, content, images, tags, anonymous, status, create_time
+                                  <if test="tenantId != null">, tenant_id</if>)
+        VALUES (#{orderId}, #{role}, #{reviewerId}, #{revieweeId},
+                <if test="productId != null">#{productId},</if>
+                #{overallScore}, #{content}, #{images}, #{tags}, #{anonymous}, 'normal', sysdate()
+                <if test="tenantId != null">, #{tenantId}</if>)
+    </insert>
+
+    <select id="selectByOrderAndRole" resultMap="ReviewResult">
+        <include refid="selectReviewVo"/>
+        WHERE r.order_id = #{orderId} AND r.role = #{role}
+        <if test="tenantId != null">AND r.tenant_id = #{tenantId}</if>
+        LIMIT 1
+    </select>
+
+    <select id="selectByOrderId" resultMap="ReviewResult">
+        <include refid="selectReviewVo"/>
+        WHERE r.order_id = #{orderId}
+        <if test="tenantId != null">AND r.tenant_id = #{tenantId}</if>
+        ORDER BY r.create_time ASC
+    </select>
+
+    <select id="selectPageByProduct" resultMap="ReviewResult">
+        <include refid="selectReviewVo"/>
+        WHERE r.product_id = #{productId} AND r.role = 'buyer' AND r.status = 'normal'
+        <if test="tenantId != null">AND r.tenant_id = #{tenantId}</if>
+        ORDER BY r.create_time DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="selectProductSummary" resultType="java.util.HashMap">
+        SELECT
+            COUNT(*) AS reviewCount,
+            ROUND(AVG(r.overall_score), 1) AS avgScore
+        FROM trade_review r
+        WHERE r.product_id = #{productId} AND r.role = 'buyer' AND r.status = 'normal'
+        <if test="tenantId != null">AND r.tenant_id = #{tenantId}</if>
+    </select>
+
+    <select id="selectPageByReviewee" resultMap="ReviewResult">
+        <include refid="selectReviewVo"/>
+        WHERE r.reviewee_id = #{revieweeId} AND r.role = 'buyer' AND r.status = 'normal'
+        <if test="tenantId != null">AND r.tenant_id = #{tenantId}</if>
+        ORDER BY r.create_time DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <!-- 卖家评分汇总：实时聚合，不加冗余信用表（同 twelve_runner_review 先例） -->
+    <select id="selectUserSummary" resultType="java.util.HashMap">
+        SELECT
+            COUNT(*) AS reviewCount,
+            ROUND(AVG(r.overall_score), 1) AS avgScore,
+            SUM(CASE WHEN r.overall_score &gt;= 4 THEN 1 ELSE 0 END) AS goodCount
+        FROM trade_review r
+        WHERE r.reviewee_id = #{revieweeId} AND r.role = 'buyer' AND r.status = 'normal'
+        <if test="tenantId != null">AND r.tenant_id = #{tenantId}</if>
+    </select>
+
+    <!-- 运营后台：平台视角不过滤租户，不脱敏（同 FeedServiceImpl.audit 惯例）。
+         overall_score + 0：tinyint(1) 会被 JDBC 映射为 Boolean，Map 输出需显式转整型 -->
+    <sql id="selectAdminVo">
+        SELECT r.review_id, r.order_id, r.role, r.reviewer_id, r.reviewee_id, r.product_id,
+               r.overall_score + 0 overall_score, r.content, r.images, r.tags, r.anonymous, r.status, r.create_time,
+               u.nick_name reviewer_nick_name, u.avatar reviewer_avatar,
+               o.order_no, p.title product_title,
+               ru.nick_name reviewee_nick_name
+        FROM trade_review r
+        LEFT JOIN sys_user u ON r.reviewer_id = u.user_id
+        LEFT JOIN sys_user ru ON r.reviewee_id = ru.user_id
+        LEFT JOIN trade_order o ON r.order_id = o.order_id
+        LEFT JOIN product p ON r.product_id = p.product_id
+    </sql>
+
+    <select id="selectAdminPage" resultType="java.util.HashMap">
+        <include refid="selectAdminVo"/>
+        <where>
+            <if test="status != null and status != ''">
+                AND r.status = #{status}
+            </if>
+            <if test="role != null and role != ''">
+                AND r.role = #{role}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (r.content LIKE CONCAT('%', #{keyword}, '%')
+                     OR o.order_no LIKE CONCAT('%', #{keyword}, '%')
+                     OR u.nick_name LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY r.create_time DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="countAdminPage" resultType="long">
+        SELECT COUNT(*)
+        FROM trade_review r
+        LEFT JOIN sys_user u ON r.reviewer_id = u.user_id
+        LEFT JOIN trade_order o ON r.order_id = o.order_id
+        <where>
+            <if test="status != null and status != ''">
+                AND r.status = #{status}
+            </if>
+            <if test="role != null and role != ''">
+                AND r.role = #{role}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (r.content LIKE CONCAT('%', #{keyword}, '%')
+                     OR o.order_no LIKE CONCAT('%', #{keyword}, '%')
+                     OR u.nick_name LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+    </select>
+
+    <update id="updateStatus">
+        UPDATE trade_review SET status = #{status}
+        WHERE review_id = #{reviewId}
+    </update>
+
+</mapper>

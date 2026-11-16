@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.trade.server.mapper.SettlementReconDiffMapper">
+
+    <resultMap type="SettlementReconDiff" id="DiffResult">
+        <id property="diffId" column="diff_id"/>
+        <result property="bizDate" column="biz_date"/>
+        <result property="type" column="type"/>
+        <result property="bizKey" column="biz_key"/>
+        <result property="orderId" column="order_id"/>
+        <result property="settlementId" column="settlement_id"/>
+        <result property="sellerId" column="seller_id"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="channelAmount" column="channel_amount"/>
+        <result property="platformAmount" column="platform_amount"/>
+        <result property="status" column="status"/>
+        <result property="resolvedBy" column="resolved_by"/>
+        <result property="resolvedNote" column="resolved_note"/>
+        <result property="resolvedAt" column="resolved_at"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <sql id="diffCols">
+        diff_id, biz_date, type, biz_key, order_id, settlement_id, seller_id, tenant_id,
+        channel_amount, platform_amount, status, resolved_by, resolved_note, resolved_at, create_time
+    </sql>
+
+    <insert id="insertIgnore" parameterType="SettlementReconDiff" useGeneratedKeys="true" keyProperty="diffId">
+        INSERT IGNORE INTO settlement_recon_diff
+            (biz_date, type, biz_key, order_id, settlement_id, seller_id, tenant_id,
+             channel_amount, platform_amount, status, create_time)
+        VALUES (#{bizDate}, #{type}, #{bizKey}, #{orderId}, #{settlementId}, #{sellerId}, #{tenantId},
+                #{channelAmount}, #{platformAmount}, #{status}, NOW())
+    </insert>
+
+    <select id="selectPage" resultMap="DiffResult">
+        SELECT <include refid="diffCols"/> FROM settlement_recon_diff
+        <where>
+            <if test="bizDate != null and bizDate != ''">AND biz_date = #{bizDate}</if>
+            <if test="status != null and status != ''">AND status = #{status}</if>
+            <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        </where>
+        ORDER BY diff_id DESC
+    </select>
+
+    <update id="resolve">
+        UPDATE settlement_recon_diff
+        SET status = 'resolved', resolved_by = #{resolvedBy}, resolved_note = #{resolvedNote},
+            resolved_at = NOW()
+        WHERE diff_id = #{diffId} AND status = 'open'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <select id="countOpenBySeller" resultType="int">
+        SELECT COUNT(*) FROM settlement_recon_diff
+        WHERE seller_id = #{sellerId} AND tenant_id = #{tenantId} AND status = 'open'
+    </select>
+
+    <update id="freezeSellersWithOpenDiffs">
+        UPDATE seller_account a
+        JOIN (SELECT DISTINCT seller_id, tenant_id FROM settlement_recon_diff
+              WHERE biz_date = #{bizDate} AND status = 'open') d
+          ON d.seller_id = a.seller_id AND d.tenant_id = a.tenant_id
+        SET a.frozen = 1, a.update_time = NOW()
+        WHERE a.frozen = 0
+    </update>
+
+</mapper>

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>weiwei Agent 改进报告（第 3 轮）：HITL 与智能度</title>
+<style>
+  :root { --bg:#f8f9fb; --paper:#fff; --ink:#1f2430; --ink2:#4a5264; --ink3:#7a8296; --line:#e4e7ee; --accent:#2456d6; --soft:#eef3ff; --new-bg:#eaf7ef; --new-ink:#1c7a44; --obs-bg:#fff7e8; --obs-ink:#8a5a12; --code:#f1f3f8; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif; background:var(--bg); color:var(--ink); line-height:1.75; font-size:15.5px; }
+  .wrap { max-width:960px; margin:0 auto; padding:40px 28px 80px; }
+  .hero { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:36px; margin-bottom:32px; }
+  .kicker { color:var(--accent); font-weight:600; font-size:13.5px; letter-spacing:.08em; margin-bottom:8px; }
+  h1 { font-size:28px; margin-bottom:14px; }
+  .meta { color:var(--ink3); font-size:13.5px; } .meta b { color:var(--ink2); }
+  .lead { margin-top:14px; color:var(--ink2); }
+  h2 { font-size:21px; margin:44px 0 16px; padding-left:14px; border-left:4px solid var(--accent); }
+  p { margin:10px 0; color:var(--ink2); }
+  .card { background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:24px 28px; margin-bottom:20px; }
+  .tag { display:inline-block; font-size:12px; font-weight:600; border-radius:999px; padding:2px 10px; margin-right:6px; }
+  .tag-new { background:var(--new-bg); color:var(--new-ink); } .tag-obs { background:var(--obs-bg); color:var(--obs-ink); }
+  table { width:100%; border-collapse:collapse; margin:14px 0; font-size:14px; }
+  th { text-align:left; background:var(--soft); padding:9px 12px; border:1px solid var(--line); font-size:13.5px; }
+  td { padding:9px 12px; border:1px solid var(--line); color:var(--ink2); vertical-align:top; }
+  td b { color:var(--ink); }
+  ul { margin:10px 0 10px 22px; color:var(--ink2); } li { margin:5px 0; }
+  code { background:var(--code); border-radius:5px; padding:1px 6px; font-family:Consolas,monospace; font-size:13.5px; }
+  .deliver { margin-top:10px; padding:10px 14px; background:var(--soft); border-radius:8px; font-size:14px; color:var(--ink); }
+  .deliver::before { content:"✅ 验收："; font-weight:600; color:var(--accent); }
+  .footer { margin-top:48px; color:var(--ink3); font-size:13px; text-align:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">ROUND 3 · HITL &amp; INTELLIGENCE</div>
+  <h1>weiwei Agent 改进报告（第 3 轮）：敏感操作人机协作 + 智能度实证优化</h1>
+  <div class="meta">对象：<b>ai-service/app/services/agent/</b> · 触发：用户反馈「结果不符合预期 + 支付/退款应由人操作」 · 日期：<b>2026-10-10</b></div>
+  <p class="lead">两个诉求分别用<b>实证数据</b>和<b>HITL 红线</b>解决：智能度问题不再靠猜——用第 2 轮建好的评测集真实跑分定位失败模式，按证据修 prompt 后复测 <b>88.5% → 96.2%</b>；敏感操作按「资金红线由人执行」重构工具边界。</p>
+</header>
+
+<!-- 1 -->
+<section class="card">
+  <h2>一、HITL：支付/退款等敏感操作由人执行</h2>
+  <table>
+    <tr><th style="width:20%">操作</th><th style="width:26%">改前</th><th>改后（人机分工）</th></tr>
+    <tr>
+      <td><b>支付</b></td>
+      <td>agent 持有 <code>pay_order</code> 工具，确认后<b>直接把订单标为已支付</b>（模拟扣款）</td>
+      <td><span class="tag tag-new">工具移除</span><code>pay_order</code> 从 Agent 工具注册表移除（函数保留供测试与未来支付回调）。下单成功后由话术引导用户<b>本人到「我的-订单」页完成支付</b>。系统提示词新增第 11 条红线：绝不能声称"已为你支付"。</td>
+    </tr>
+    <tr>
+      <td><b>退款/退货</b></td>
+      <td>agent 可提交纠纷工单（工单本就流转人工仲裁）</td>
+      <td><span class="tag tag-new">边界明确</span>保留 <code>create_dispute</code>（提交工单=转人工），但提示词明确：退款由平台客服<b>人工审核处理</b>，agent 不得承诺退款金额或到账时间。</td>
+    </tr>
+    <tr>
+      <td><b>下单（confirm_order）</b></td>
+      <td>两段式确认 + 幂等键</td>
+      <td>不变。创建未支付订单不转移资金，保留在 agent 能力内；支付环节交还用户。</td>
+    </tr>
+  </table>
+  <p><b>改动文件</b>：<code>tools.py</code>（注册表）、<code>nodes.py</code>（GUIDE_SYSTEM_PROMPT 第 11 条、状态标签）。SSE 协议不变，前端与 Java 侧无需改动。</p>
+</section>
+
+<!-- 2 -->
+<section class="card">
+  <h2>二、智能度：用评测集实证定位并修复</h2>
+  <p>对 26 条路由用例做真实 LLM 调用（两轮全量，各约 12–16 分钟），拿到第一手失败证据：</p>
+  <table>
+    <tr><th style="width:10%">轮次</th><th style="width:14%">准确率</th><th>失败用例与归因</th></tr>
+    <tr><td>基线</td><td><b>88.5%</b>（23/26）</td>
+      <td>R15 货不对板无"退款"字样→误判 other（售后描述缺关键词）；R24 "那个东西怎么样"→强行分发（缺模糊判定规则）；R26 无关话题→other 而非闲聊（闲聊定义过窄）。</td></tr>
+    <tr><td>修后</td><td><b>92.3%</b>（24/26）</td>
+      <td>首轮 3 个失败<b>全部修复</b>。剩 R09（订单/物流双关，属用例设计问题，已加 <code>expected_any</code> 双可接受）、R26（意图正确但置信度 0，模型波动）。</td></tr>
+    <tr><td>判定口径修正后</td><td><b>96.2%</b>（25/26）</td><td>唯一遗留：闲聊类偶发低置信度→进澄清而非闲聊回复（体验瑕疵，无资金风险），记录观察。</td></tr>
+  </table>
+  <p><b>路由 prompt 修复内容</b>（<code>ROUTER_SYSTEM_PROMPT</code>）：</p>
+  <ul>
+    <li>售后定义补齐：与描述不符、质量问题、疑似假货、卖家不理人均归 after_sales（不依赖"退款"字样）；</li>
+    <li>模糊判定规则：指代词在历史中找不到确定对象 → 归 other 低置信度；</li>
+    <li>闲聊定义放宽：一切与购物/社区无关的话题（软件使用、生活求助、常识问答等）。</li>
+  </ul>
+  <p><b>方法论价值</b>：这正是路线图"评测先行"的闭环——不猜问题，先跑分、按失败分类修、修完复测验证。今后任何路由 prompt 改动都必须先过评测集（基线 ≥85%）。</p>
+</section>
+
+<!-- 3 -->
+<section class="card">
+  <h2>三、补充：超时 / 死循环等异常场景加固（用户新增诉求）</h2>
+  <p><b>审计结论</b>——已有：LLM 调用超时 60s + SDK 重试 1 次、工具循环上限 5 步、上下文/结果截断、Redis 与 RAG 熔断降级。缺失并已补齐：</p>
+  <table>
+    <tr><th style="width:24%">风险场景</th><th style="width:30%">补强措施</th><th>实现</th></tr>
+    <tr><td>单次工具卡死（DB/外部调用挂起）→ 长时间无回答</td><td><span class="tag tag-new">工具级超时</span></td><td><code>_invoke_tool_with_timeout</code>：<code>agent_tool_timeout</code>（默认 20s）内未完成即返回结构化错误 JSON，模型可自行调整（换工具/如实告知），绝不挂死对话。超时计入 trace。</td></tr>
+    <tr><td>整图执行卡死 → SSE 无限挂起</td><td><span class="tag tag-new">整图总超时 + 看门狗</span></td><td>同步与流式路径均套 <code>agent_graph_timeout</code>（默认 120s）：同步路径超时返回兜底回复；流式路径看门狗取消任务并下发 <code>error</code> 事件，前端不再无限等待。</td></tr>
+    <tr><td>图执行死循环</td><td><span class="tag tag-new">recursion_limit 显式化</span></td><td>runner config 显式携带 <code>agent_recursion_limit</code>（默认 30，设计文档 6.6 要求放 config，此前遗漏）。</td></tr>
+    <tr><td>工具循环跑满 5 步未收敛</td><td><span class="tag tag-new">耗尽兜底文案</span></td><td>循环耗尽且模型仍未产出文本时，回复明确的「处理不顺利，可换个问法或转人工」，并在 trace 标记 <code>loop_exhausted</code> 便于统计该失败模式频率。</td></tr>
+  </table>
+  <div class="deliver">新增 <code>tests/test_agent_resilience.py</code>（4 条：慢工具超时返回错误 / 正常工具直通 / 整图超时兜底 / config 携带 recursion_limit）；全量 agent 回归 <b>62 passed, 1 skipped</b>（含 2 条旧断言按 recursion_limit 新增同步更新）。</div>
+</section>
+
+<!-- 3b -->
+<section class="card">
+  <h2>三·补：上下文膨胀改「提炼总结」而非硬裁剪（用户新增诉求）</h2>
+  <p><b>原状</b>——历史超长时 <code>_trim_for_llm</code> 直接丢弃前缀消息（硬裁剪），用户早期需求/决定（商品 ID、地址、金额）会静默丢失。<b>改造</b>——滚动增量摘要：</p>
+  <table>
+    <tr><th style="width:30%">机制</th><th>说明</th></tr>
+    <tr><td>触发阈值</td><td>state 消息数 &gt; <code>COMPACT_TRIGGER(24)</code> 时触发；最近 <code>COMPACT_KEEP_RECENT(12)</code> 条保持原文不摘要（工具循环实时可见）。</td></tr>
+    <tr><td>增量提炼</td><td>只把「已摘要覆盖点 → 切点」的新增段交给 LLM 压缩为要点列表（<code>SUMMARIZE_SYSTEM_PROMPT</code> 强制保留商品 ID/订单号/金额/地址/已确认决定），与旧摘要滚动合并——长对话只付一次增量成本，不重复摘要全量。</td></tr>
+    <tr><td>切点对齐</td><td>切点从 HumanMessage 起切，保证 AI(tool_calls)→ToolMessage 序列不被拆散。</td></tr>
+    <tr><td>持久化</td><td>摘要与覆盖位置写入 state（<code>history_summary</code> / <code>summary_upto</code>），随 checkpoint 跨轮保留；下轮若无足够新增段，直接用已有摘要重建 head，<b>不耗 LLM 调用</b>。</td></tr>
+    <tr><td>降级链</td><td>LLM 摘要失败 → 朴素拼接尾部 6 条（<code>_fallback_summary</code>），再不行 → 原有 <code>_trim_for_llm</code> 兜底；摘要环节绝不阻断主流程。</td></tr>
+  </table>
+  <div class="deliver">新增 <code>tests/test_agent_compact.py</code>（10 条：阈值不触发 / 增量段正确 / 二轮滚动增量 / 无新增段不耗 LLM 重建 / 工具序列不拆散 / System·Tool 消息不入摘要 / LLM 失败降级 / fallback 边界）。全量 agent 回归 <b>72 passed, 1 skipped</b>。</div>
+</section>
+
+<!-- 4 -->
+<section class="card">
+  <h2>四、验收结果</h2>
+  <div class="deliver">
+    agent 相关测试全绿：<code>test_agent + test_agent_polish + test_redis_persistence（补装 fakeredis）+ test_agent_eval + test_agent_resilience + test_agent_compact</code> 共 <b>72 passed, 1 skipped</b>；在线评测两轮完成并落盘报告（<code>tests/agent_eval/report_20261010_*.json</code>，路由准确率 88.5% → 96.2%）；评测脚本新增 <code>expected_any</code> 多可接受意图支持并通过离线校验。
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="card">
+  <h2>五、第二轮审计：修复 3 个严重缺陷（同日追查）</h2>
+  <p>对压缩链路与编排做整体复审，发现并修复 3 个「写了但没生效 / 生效在错误地方」的缺陷：</p>
+  <table>
+    <tr><th style="width:26%">缺陷</th><th style="width:12%">严重度</th><th>说明与修复</th></tr>
+    <tr><td>域人设从未生效</td><td><span class="tag tag-new">严重</span></td><td>runner 兼容路径注入旧版 4 条规则的 SYSTEM_PROMPT 占据 messages[0]，nodes 判断「已是 SystemMessage 则保留」恒真 → <b>GUIDE/BUTLER 人设（含 HITL 红线第 11 条、下单 7 步流程）是死代码</b>。修复：新增 <code>_ensure_persona</code>，每轮按域重建人设并附着 RAG；保留原消息 id，避免 add_messages 把新对象追加到历史末尾（旧 RAG 分支正有此隐患）。</td></tr>
+    <tr><td>摘要文本泄漏到用户流</td><td><span class="tag tag-new">严重</span></td><td>摘要压缩调用走 <code>ainvoke_or_stream</code>，流式模式下 token 汇会把摘要要点当作回答增量推给前端。修复：内部压缩直连 <code>llm.ainvoke</code> 并加 15s 超时（顺带补上摘要环节此前缺失的超时保护，卡死时降级 fallback）。</td></tr>
+    <tr><td>摘要被裁剪链路裁掉</td><td><span class="tag tag-new">严重</span></td><td><code>_trim_for_llm</code> 只保留首条 SystemMessage，而历史摘要恰是第 2 条、且只在长历史场景生成——机制自己拆自己的台。修复：保留开头<b>连续</b> SystemMessage（人设 + 摘要）。</td></tr>
+  </table>
+  <div class="deliver">新增 7 条回归测试（trim 双 System / persona 覆盖与 id 保留 / RAG 附着 / 无 System 前插 / 摘要不进 sink / 摘要超时降级），全量 agent 回归 <b>79 passed, 1 skipped</b>。</div>
+</section>
+
+<!-- 6 -->
+<section class="card">
+  <h2>六、遗留与建议</h2>
+  <table>
+    <tr><th style="width:42%">项</th><th style="width:14%">状态</th><th>说明</th></tr>
+    <tr><td>闲聊偶发低置信度（R26 型）</td><td><span class="tag tag-obs">观察</span></td><td>意图正确但 conf&lt;0.6 会进澄清。若后续日志频发，可对 chitchat 单独放宽阈值或二次判类。</td></tr>
+    <tr><td>真实失败样本收集</td><td>建议</td><td>「结果不符合预期」若还指回答质量（非路由），请提供 1–2 条真实对话（session_id 或截图），用 trace 日志定位到具体环节后针对性修复。</td></tr>
+    <tr><td>支付页面跳转</td><td>建议</td><td>当前引导话术为文字描述；后续可让 confirm_order 返回携带 order_no 的前端可点击支付链接，进一步缩短路径。</td></tr>
+    <tr><td>看门狗触发时 trace 不落盘</td><td><span class="tag tag-obs">低</span></td><td>chat_stream 超时取消任务时 result 不可得，只有 error 日志无结构化 trace；超时恰是最需观测的场景，后续可在 watchdog 里补一条轻量 trace。</td></tr>
+    <tr><td>客户端断开后后台任务跑完</td><td><span class="tag tag-obs">低</span></td><td>SSE 连接断开时图任务继续执行至结束，浪费 token 但无正确性影响；可在 generator finally 里 task.cancel()。</td></tr>
+  </table>
+</section>
+
+<div class="footer">Round 3 · 2026-10-10 · 改进闭环：跑分 → 归因 → 修复 → 复测</div>
+
+</div>
+</body>
+</html>

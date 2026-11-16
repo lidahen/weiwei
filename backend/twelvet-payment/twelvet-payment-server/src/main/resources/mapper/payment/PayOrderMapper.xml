@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.payment.server.mapper.PayOrderMapper">
+
+    <resultMap id="PayOrderResult" type="com.twelvet.payment.api.domain.PayOrder">
+        <id property="id" column="pay_id"/>
+        <result property="orderId" column="order_id"/>
+        <result property="outTradeNo" column="out_trade_no"/>
+        <result property="channel" column="pay_channel"/>
+        <result property="amount" column="pay_amount"/>
+        <result property="payUrl" column="qr_code_url"/>
+        <result property="status" column="status"/>
+        <result property="paidAt" column="paid_at"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <insert id="insertPayOrder">
+        INSERT INTO trade_pay
+            (order_id, pay_user_id, out_trade_no, pay_channel, pay_amount, biz_type, qr_code_url, status, expire_at,
+             create_time, update_time
+            <if test="tid != null">, tenant_id</if>)
+        VALUES
+            (#{orderId}, #{payUserId}, #{outTradeNo}, #{channel}, #{amount}, #{bizType}, NULL, 'unpaid',
+             DATE_ADD(NOW(), INTERVAL 30 MINUTE), NOW(), NOW()
+            <if test="tid != null">, #{tid}</if>)
+    </insert>
+
+    <!-- 限定 out_trade_no（而非 order_id+channel）：重复调用 createPayOrder 只回写本流水号
+         对应的单，不再覆盖同订单同渠道的历史支付单（历史缺陷会把全部旧单改成同一 out_trade_no
+         并重置 unpaid，令按单号查询抛 TooManyResultsException） -->
+    <update id="updateQrCode">
+        UPDATE trade_pay
+        SET qr_code_url = #{qrCodeUrl}, status = 'unpaid', update_time = NOW()
+        WHERE out_trade_no = #{outTradeNo}
+    </update>
+
+    <update id="markPaidByOutTradeNo">
+        UPDATE trade_pay
+        SET status = 'paid', paid_at = #{paidAt}, update_time = NOW()
+        WHERE out_trade_no = #{outTradeNo} AND status != 'paid'
+    </update>
+
+    <update id="markRefunded">
+        UPDATE trade_pay
+        SET status = 'refunded', update_time = NOW()
+        WHERE out_trade_no = #{outTradeNo} AND status = 'paid'
+    </update>
+
+    <update id="markRenewPaid">
+        UPDATE trade_pay
+        SET status = 'paid', paid_at = NOW(), update_time = NOW()
+        WHERE out_trade_no = #{outTradeNo} AND status != 'paid'
+    </update>
+
+    <select id="selectByOutTradeNo" resultType="map">
+        SELECT pay_id, order_id, out_trade_no, pay_channel, pay_amount, qr_code_url,
+               status, paid_at, expire_at, create_time, update_time, fail_reason
+        FROM trade_pay
+        WHERE out_trade_no = #{outTradeNo}
+        <if test="tid != null">AND tenant_id = #{tid}</if>
+    </select>
+
+    <select id="selectOrderInfoByOutTradeNo" resultType="map">
+        SELECT order_id, biz_type, pay_user_id, pay_channel, pay_amount, status
+        FROM trade_pay
+        WHERE out_trade_no = #{outTradeNo}
+    </select>
+
+    <select id="selectEntityByOutTradeNo" resultMap="PayOrderResult">
+        SELECT pay_id, order_id, out_trade_no, pay_channel, pay_amount, qr_code_url,
+               status, paid_at, expire_at, create_time, update_time
+        FROM trade_pay
+        WHERE out_trade_no = #{outTradeNo}
+    </select>
+
+    <!-- 租户续费：order_id=NULL、biz_type='renew' 写入（与商品订单/互助任务支付单区分） -->
+    <insert id="insertRenewPayOrder">
+        INSERT INTO trade_pay
+            (order_id, biz_type, out_trade_no, pay_channel, pay_amount, qr_code_url, status, expire_at, create_time, update_time, tenant_id)
+        VALUES
+            (NULL, 'renew', #{outTradeNo}, #{channel}, #{amount}, #{qrCodeUrl}, 'unpaid',
+             DATE_ADD(NOW(), INTERVAL 30 MINUTE), NOW(), NOW(), #{tid})
+    </insert>
+
+</mapper>

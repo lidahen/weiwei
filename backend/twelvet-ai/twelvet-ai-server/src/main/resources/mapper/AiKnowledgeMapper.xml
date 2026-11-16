@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.ai.server.mapper.AiKnowledgeMapper">
+
+    <resultMap type="com.twelvet.ai.api.domain.AiKnowledge" id="AiKnowledgeResult">
+        <result property="knowledgeId" column="knowledge_id"/>
+        <result property="knowledgeName" column="knowledge_name"/>
+        <result property="knowledgeDesc" column="knowledge_desc"/>
+        <result property="knowledgeSort" column="knowledge_sort"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateBy" column="update_by"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="delFlag" column="del_flag"/>
+    </resultMap>
+
+    <sql id="selectAiKnowledgeVo">
+        select knowledge_id, knowledge_name, knowledge_desc, knowledge_sort, create_by, create_time, update_by, update_time, del_flag
+        from ai_knowledge
+    </sql>
+
+    <select id="selectAiKnowledgeById" parameterType="Long" resultMap="AiKnowledgeResult">
+        <include refid="selectAiKnowledgeVo"/>
+        where knowledge_id = #{knowledgeId} and del_flag = 0
+    </select>
+
+    <select id="selectAiKnowledgeList" parameterType="com.twelvet.ai.api.domain.AiKnowledge" resultMap="AiKnowledgeResult">
+        <include refid="selectAiKnowledgeVo"/>
+        <where>
+            del_flag = 0
+            <if test="knowledgeName != null and knowledgeName != ''">
+                AND knowledge_name like concat('%', #{knowledgeName}, '%')
+            </if>
+        </where>
+        order by knowledge_sort, create_time desc
+    </select>
+
+    <select id="selectAiKnowledgeAll" resultMap="AiKnowledgeResult">
+        <include refid="selectAiKnowledgeVo"/>
+        where del_flag = 0
+        order by knowledge_sort, create_time desc
+    </select>
+
+    <insert id="insertAiKnowledge" parameterType="com.twelvet.ai.api.domain.AiKnowledge" useGeneratedKeys="true" keyProperty="knowledgeId">
+        insert into ai_knowledge
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="knowledgeName != null and knowledgeName != ''">knowledge_name,</if>
+            <if test="knowledgeDesc != null">knowledge_desc,</if>
+            <if test="knowledgeSort != null">knowledge_sort,</if>
+            <if test="createBy != null">create_by,</if>
+            create_time
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="knowledgeName != null and knowledgeName != ''">#{knowledgeName},</if>
+            <if test="knowledgeDesc != null">#{knowledgeDesc},</if>
+            <if test="knowledgeSort != null">#{knowledgeSort},</if>
+            <if test="createBy != null">#{createBy},</if>
+            sysdate()
+        </trim>
+    </insert>
+
+    <update id="updateAiKnowledge" parameterType="com.twelvet.ai.api.domain.AiKnowledge">
+        update ai_knowledge
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="knowledgeName != null and knowledgeName != ''">knowledge_name = #{knowledgeName},</if>
+            <if test="knowledgeDesc != null">knowledge_desc = #{knowledgeDesc},</if>
+            <if test="knowledgeSort != null">knowledge_sort = #{knowledgeSort},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            update_time = sysdate()
+        </trim>
+        where knowledge_id = #{knowledgeId}
+    </update>
+
+    <update id="deleteAiKnowledgeById" parameterType="Long">
+        update ai_knowledge set del_flag = 1 where knowledge_id = #{knowledgeId}
+    </update>
+
+    <update id="deleteAiKnowledgeByIds" parameterType="Long">
+        update ai_knowledge set del_flag = 1 where knowledge_id in
+        <foreach item="knowledgeId" collection="array" open="(" separator="," close=")">
+            #{knowledgeId}
+        </foreach>
+    </update>
+
+</mapper>

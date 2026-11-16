@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.trade.server.mapper.TradePayLookupMapper">
+
+    <!--
+      多态外键撞号事实（历史记录，2026-11-03 已由 trade_pay.biz_type 消歧，保留备查）：
+      trade_pay.order_id 曾是商品订单 / 跑腿任务 / 租户续费共用的列，本机实测 17–21 号撞号
+      （trade_pay 17–21 是 1.50/2.00/4.00 的跑腿已付单，trade_order 17–21 是
+      2499/507/507/499/1511 的商品单）。只按 order_id 定位会退掉跑腿任务的支付单。
+      现在 selectPaidByOrderId 已按 biz_type='trade' 收窄；pay_user_id + 金额双重校验
+      保留为防御（候选不唯一时转人工——宁可不退不可错退）。
+    -->
+    <select id="selectPaidByOrderId" resultType="map">
+        SELECT pay_id, out_trade_no, pay_amount, pay_user_id, pay_channel
+        FROM trade_pay
+        WHERE order_id = #{orderId}
+          AND biz_type = 'trade'
+          AND status = 'paid'
+          AND out_trade_no IS NOT NULL
+        ORDER BY pay_id DESC
+    </select>
+
+</mapper>

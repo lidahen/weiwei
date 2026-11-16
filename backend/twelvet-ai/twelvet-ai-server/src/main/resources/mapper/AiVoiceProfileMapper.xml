@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.ai.server.mapper.AiVoiceProfileMapper">
+
+    <resultMap type="com.twelvet.ai.api.domain.AiVoiceProfile" id="AiVoiceProfileResult">
+        <result property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="name" column="name"/>
+        <result property="vendor" column="vendor"/>
+        <result property="vendorVoiceId" column="vendor_voice_id"/>
+        <result property="vendorModel" column="vendor_model"/>
+        <result property="sampleUrl" column="sample_url"/>
+        <result property="sampleText" column="sample_text"/>
+        <result property="durationMs" column="duration_ms"/>
+        <result property="status" column="status"/>
+        <result property="consentSigned" column="consent_signed"/>
+        <result property="consentIp" column="consent_ip"/>
+        <result property="consentAt" column="consent_at"/>
+        <result property="errorMsg" column="error_msg"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="delFlag" column="del_flag"/>
+    </resultMap>
+
+    <sql id="selectAiVoiceProfileVo">
+        select id, user_id, name, vendor, vendor_voice_id, vendor_model, sample_url, sample_text, duration_ms, status, consent_signed, consent_ip, consent_at, error_msg, create_by, create_time, update_time, del_flag
+        from ai_voice_profile
+    </sql>
+
+    <select id="selectAiVoiceProfileById" parameterType="Long" resultMap="AiVoiceProfileResult">
+        <include refid="selectAiVoiceProfileVo"/>
+        where id = #{id} and del_flag = 0
+    </select>
+
+    <select id="selectAiVoiceProfileList" parameterType="com.twelvet.ai.api.domain.AiVoiceProfile" resultMap="AiVoiceProfileResult">
+        <include refid="selectAiVoiceProfileVo"/>
+        <where>
+            del_flag = 0
+            <if test="userId != null">AND user_id = #{userId}</if>
+            <if test="status != null">AND status = #{status}</if>
+            <if test="name != null and name != ''">AND name like concat('%', #{name}, '%')</if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <insert id="insertAiVoiceProfile" parameterType="com.twelvet.ai.api.domain.AiVoiceProfile" useGeneratedKeys="true" keyProperty="id">
+        insert into ai_voice_profile
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="userId != null">user_id,</if>
+            <if test="name != null and name != ''">name,</if>
+            <if test="vendor != null and vendor != ''">vendor,</if>
+            <if test="vendorVoiceId != null and vendorVoiceId != ''">vendor_voice_id,</if>
+            <if test="vendorModel != null and vendorModel != ''">vendor_model,</if>
+            <if test="sampleUrl != null and sampleUrl != ''">sample_url,</if>
+            <if test="sampleText != null and sampleText != ''">sample_text,</if>
+            <if test="durationMs != null">duration_ms,</if>
+            <if test="status != null">status,</if>
+            <if test="consentSigned != null">consent_signed,</if>
+            <if test="consentIp != null and consentIp != ''">consent_ip,</if>
+            <if test="consentAt != null">consent_at,</if>
+            create_time,
+            update_time
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="userId != null">#{userId},</if>
+            <if test="name != null and name != ''">#{name},</if>
+            <if test="vendor != null and vendor != ''">#{vendor},</if>
+            <if test="vendorVoiceId != null and vendorVoiceId != ''">#{vendorVoiceId},</if>
+            <if test="vendorModel != null and vendorModel != ''">#{vendorModel},</if>
+            <if test="sampleUrl != null and sampleUrl != ''">#{sampleUrl},</if>
+            <if test="sampleText != null and sampleText != ''">#{sampleText},</if>
+            <if test="durationMs != null">#{durationMs},</if>
+            <if test="status != null">#{status},</if>
+            <if test="consentSigned != null">#{consentSigned},</if>
+            <if test="consentIp != null and consentIp != ''">#{consentIp},</if>
+            <if test="consentAt != null">#{consentAt},</if>
+            now(),
+            now()
+        </trim>
+    </insert>
+
+    <update id="updateAiVoiceProfile" parameterType="com.twelvet.ai.api.domain.AiVoiceProfile">
+        update ai_voice_profile
+        <set>
+            <if test="name != null and name != ''">name = #{name},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="errorMsg != null">error_msg = #{errorMsg},</if>
+            update_time = now()
+        </set>
+        where id = #{id}
+    </update>
+
+    <update id="updateAiVoiceProfileStatus" parameterType="com.twelvet.ai.api.domain.AiVoiceProfile">
+        update ai_voice_profile
+        <set>
+            <if test="status != null">status = #{status},</if>
+            <if test="vendorVoiceId != null and vendorVoiceId != ''">vendor_voice_id = #{vendorVoiceId},</if>
+            <if test="errorMsg != null">error_msg = #{errorMsg},</if>
+            update_time = now()
+        </set>
+        where id = #{id}
+    </update>
+
+    <update id="deleteAiVoiceProfileById" parameterType="Long">
+        update ai_voice_profile set del_flag = 1, update_time = now() where id = #{id}
+    </update>
+
+    <select id="countTodayTrainings" parameterType="Long" resultType="int">
+        select count(*) from ai_voice_profile
+        where user_id = #{userId}
+          and del_flag = 0
+          and date(create_time) = curdate()
+    </select>
+
+</mapper>

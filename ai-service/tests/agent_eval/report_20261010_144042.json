@@ -1,0 +1,244 @@
+{
+  "generated_at": "2026-10-10 14:40:42",
+  "total": 26,
+  "passed": 24,
+  "accuracy": 0.9231,
+  "rows": [
+    {
+      "id": "R01",
+      "note": "基础找商品",
+      "expected": "find_product",
+      "actual": "find_product",
+      "confidence": 0.95,
+      "hit": true,
+      "ms": 31663
+    },
+    {
+      "id": "R02",
+      "note": "口语化找商品",
+      "expected": "find_product",
+      "actual": "find_product",
+      "confidence": 0.95,
+      "hit": true,
+      "ms": 2365
+    },
+    {
+      "id": "R03",
+      "note": "指代消解：第二款",
+      "expected": "product_detail",
+      "actual": "product_detail",
+      "confidence": 0.95,
+      "hit": true,
+      "ms": 26382
+    },
+    {
+      "id": "R04",
+      "note": "指代消解：这个",
+      "expected": "product_detail",
+      "actual": "product_detail",
+      "confidence": 0.95,
+      "hit": true,
+      "ms": 113413
+    },
+    {
+      "id": "R05",
+      "note": "查收藏",
+      "expected": "favorite_manage",
+      "actual": "favorite_manage",
+      "confidence": 1.0,
+      "hit": true,
+      "ms": 4057
+    },
+    {
+      "id": "R06",
+      "note": "指代收藏",
+      "expected": "favorite_manage",
+      "actual": "favorite_manage",
+      "confidence": 0.95,
+      "hit": true,
+      "ms": 33831
+    },
+    {
+      "id": "R07",
+      "note": "指代下单",
+      "expected": "checkout",
+      "actual": "checkout",
+      "confidence": 0.98,
+      "hit": true,
+      "ms": 35876
+    },
+    {
+      "id": "R08",
+      "note": "跨轮购买意向",
+      "expected": "checkout",
+      "actual": "checkout",
+      "confidence": 0.95,
+      "hit": true,
+      "ms": 50420
+    },
+    {
+      "id": "R09",
+      "note": "基础查订单",
+      "expected": "order_query",
+      "actual": "logistics",
+      "confidence": 0.98,
+      "hit": false,
+      "ms": 21758,
+      "failure_class": "意图误判"
+    },
+    {
+      "id": "R10",
+      "note": "订单列表",
+      "expected": "order_query",
+      "actual": "order_query",
+      "confidence": 1.0,
+      "hit": true,
+      "ms": 82801
+    },
+    {
+      "id": "R11",
+      "note": "基础查物流",
+      "expected": "logistics",
+      "actual": "logistics",
+      "confidence": 0.99,
+      "hit": true,
+      "ms": 4818
+    },
+    {
+      "id": "R12",
+      "note": "物流状态咨询",
+      "expected": "logistics",
+      "actual": "logistics",
+      "confidence": 0.98,
+      "hit": true,
+      "ms": 34380
+    },
+    {
+      "id": "R13",
+      "note": "退款",
+      "expected": "after_sales",
+      "actual": "after_sales",
+      "confidence": 0.99,
+      "hit": true,
+      "ms": 15155
+    },
+    {
+      "id": "R14",
+      "note": "退货纠纷",
+      "expected": "after_sales",
+      "actual": "after_sales",
+      "confidence": 0.98,
+      "hit": true,
+      "ms": 11818
+    },
+    {
+      "id": "R15",
+      "note": "货不对板，未出现退款字样",
+      "expected": "after_sales",
+      "actual": "after_sales",
+      "confidence": 0.98,
+      "hit": true,
+      "ms": 74221
+    },
+    {
+      "id": "R16",
+      "note": "想接单",
+      "expected": "runner_query",
+      "actual": "runner_query",
+      "confidence": 0.98,
+      "hit": true,
+      "ms": 45205
+    },
+    {
+      "id": "R17",
+      "note": "发悬赏",
+      "expected": "runner_query",
+      "actual": "runner_query",
+      "confidence": 0.95,
+      "hit": true,
+      "ms": 105039
+    },
+    {
+      "id": "R18",
+      "note": "社区概况",
+      "expected": "community_ask",
+      "actual": "community_ask",
+      "confidence": 0.95,
+      "hit": true,
+      "ms": 13942
+    },
+    {
+      "id": "R19",
+      "note": "热帖",
+      "expected": "community_ask",
+      "actual": "community_ask",
+      "confidence": 1.0,
+      "hit": true,
+      "ms": 4915
+    },
+    {
+      "id": "R20",
+      "note": "日报",
+      "expected": "community_ask",
+      "actual": "community_ask",
+      "confidence": 0.98,
+      "hit": true,
+      "ms": 23559
+    },
+    {
+      "id": "R21",
+      "note": "寒暄",
+      "expected": "chitchat",
+      "actual": "chitchat",
+      "confidence": 1.0,
+      "hit": true,
+      "ms": 65652
+    },
+    {
+      "id": "R22",
+      "note": "闲聊",
+      "expected": "chitchat",
+      "actual": "chitchat",
+      "confidence": 0.95,
+      "hit": true,
+      "ms": 27246
+    },
+    {
+      "id": "R23",
+      "note": "能力咨询",
+      "expected": "chitchat",
+      "actual": "chitchat",
+      "confidence": 1.0,
+      "hit": true,
+      "ms": 37171
+    },
+    {
+      "id": "R24",
+      "note": "无指代对象，模糊",
+      "expected": "clarify",
+      "actual": "other",
+      "confidence": 0.3,
+      "hit": true,
+      "ms": 49649
+    },
+    {
+      "id": "R25",
+      "note": "意图完全不明",
+      "expected": "clarify",
+      "actual": "other",
+      "confidence": 0.0,
+      "hit": true,
+      "ms": 31886
+    },
+    {
+      "id": "R26",
+      "note": "与购物/社区无关的话题，按设计归闲聊而非澄清",
+      "expected": "chitchat",
+      "actual": "chitchat",
+      "confidence": 0.0,
+      "hit": false,
+      "ms": 10233,
+      "failure_class": "意图正确但置信度不足"
+    }
+  ]
+}

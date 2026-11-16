@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.im.server.mapper.ImUnreadMapper">
+
+    <!-- 未读判定口径：会话内 msg_id > 用户已读位点(last_read_msg_id) 的他人消息（撤回的不计） -->
+    <select id="selectUnreadGroupByConv" resultType="map">
+        SELECT c.conv_id AS convId, COUNT(m.msg_id) AS unread
+        FROM im_conversation c
+        JOIN im_message m ON m.conv_id = c.conv_id
+        LEFT JOIN im_unread u ON u.conv_id = c.conv_id AND u.user_id = #{userId}
+        WHERE (c.user_a_id = #{userId} OR c.user_b_id = #{userId})
+          AND m.sender_id != #{userId}
+          AND COALESCE(m.recalled, 0) = 0
+          AND m.msg_id > COALESCE(u.last_read_msg_id, 0)
+        <if test="tenantId != null">AND c.tenant_id = #{tenantId}</if>
+        GROUP BY c.conv_id
+    </select>
+
+    <insert id="insertIgnoreRow">
+        INSERT IGNORE INTO im_unread (user_id, conv_id, unread_count, notice_unread, last_read_msg_id)
+        VALUES (#{userId}, #{convId}, 0, 0, 0)
+    </insert>
+
+    <update id="increaseUnread">
+        UPDATE im_unread SET unread_count = unread_count + 1
+        WHERE user_id = #{userId} AND conv_id = #{convId}
+    </update>
+
+    <update id="markRead">
+        UPDATE im_unread
+        SET unread_count = 0, last_read_msg_id = GREATEST(last_read_msg_id, #{msgId})
+        WHERE user_id = #{userId} AND conv_id = #{convId}
+    </update>
+
+    <insert id="insertIgnoreAllConversations">
+        INSERT IGNORE INTO im_unread (user_id, conv_id, unread_count, notice_unread, last_read_msg_id)
+        SELECT #{userId}, c.conv_id, 0, 0, COALESCE(c.last_msg_id, 0)
+        FROM im_conversation c
+        WHERE (c.user_a_id = #{userId} OR c.user_b_id = #{userId})
+        <if test="tenantId != null">AND c.tenant_id = #{tenantId}</if>
+    </insert>
+
+    <update id="markAllRead">
+        UPDATE im_unread u
+        JOIN im_conversation c ON c.conv_id = u.conv_id
+        SET u.unread_count = 0, u.last_read_msg_id = GREATEST(u.last_read_msg_id, COALESCE(c.last_msg_id, 0))
+        WHERE u.user_id = #{userId}
+        <if test="tenantId != null">AND c.tenant_id = #{tenantId}</if>
+    </update>
+
+</mapper>

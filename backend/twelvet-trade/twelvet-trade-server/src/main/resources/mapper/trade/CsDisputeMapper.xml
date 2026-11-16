@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.trade.server.mapper.CsDisputeMapper">
+
+    <resultMap type="map" id="DisputeListResult">
+        <id property="disputeId" column="dispute_id"/>
+        <result property="orderId" column="order_id"/>
+        <result property="type" column="type"/>
+        <result property="amount" column="amount"/>
+        <result property="status" column="status"/>
+        <result property="priority" column="priority"/>
+        <result property="createTime" column="create_time"/>
+        <result property="buyerNickName" column="buyer_nick_name"/>
+        <result property="sellerNickName" column="seller_nick_name"/>
+        <result property="orderNo" column="order_no"/>
+    </resultMap>
+
+    <select id="selectDisputeList" resultMap="DisputeListResult">
+        SELECT d.dispute_id, d.order_id, d.type, d.amount, d.status, d.priority, d.create_time,
+               bu.nick_name buyer_nick_name, se.nick_name seller_nick_name, o.order_no
+        FROM trade_dispute d
+        LEFT JOIN sys_user bu ON d.buyer_id = bu.user_id
+        LEFT JOIN sys_user se ON d.seller_id = se.user_id
+        LEFT JOIN trade_order o ON d.order_id = o.order_id
+        WHERE d.status = #{status}
+        ORDER BY d.create_time DESC
+    </select>
+
+    <select id="selectDisputeDetail" resultType="map">
+        SELECT d.*,
+               bu.nick_name buyerNickName, bu.avatar buyerAvatar, bu.phonenumber buyerMobile,
+               se.nick_name sellerNickName, se.avatar sellerAvatar, se.phonenumber sellerMobile,
+               o.order_no orderNo, o.total_amount totalAmount, o.product_snapshot productSnapshot
+        FROM trade_dispute d
+        LEFT JOIN sys_user bu ON d.buyer_id = bu.user_id
+        LEFT JOIN sys_user se ON d.seller_id = se.user_id
+        LEFT JOIN trade_order o ON d.order_id = o.order_id
+        WHERE d.dispute_id = #{disputeId}
+    </select>
+
+    <select id="selectDisputeStats" resultType="map">
+        SELECT
+            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
+            SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS inProgress,
+            SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) AS closed
+        FROM trade_dispute
+    </select>
+
+    <update id="claimDispute">
+        UPDATE trade_dispute SET status = 'in_progress', claim_cs_id = #{csId},
+                                claim_time = sysdate(), update_time = sysdate()
+        WHERE dispute_id = #{disputeId} AND status = 'pending'
+    </update>
+
+    <update id="judgeDispute">
+        UPDATE trade_dispute SET status = 'closed', judge_decision = #{decision},
+                                judge_amount = #{amount}, judge_reason = #{reason},
+                                judge_at = sysdate(), judge_cs_id = #{csId}, update_time = sysdate()
+        WHERE dispute_id = #{disputeId} AND status &lt;&gt; 'closed'
+    </update>
+
+</mapper>

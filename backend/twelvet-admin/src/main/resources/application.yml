@@ -1,0 +1,232 @@
+# 开发环境配置
+server:
+  # 服务器的HTTP端口，默认为8080
+  port: 8080
+  servlet:
+    # 应用的访问路径
+    context-path: /
+
+# 项目设置
+twelvet:
+  #项目名称（对外品牌名；支付订单标题、接口文档标题均引用此值）
+  name: 邻里二手
+  version: 3.5.4
+  copyrightYear: 2023
+  # 内部接口令牌（服务间调用鉴权，如 Python ai-service → Java）
+  # ⚠️ 必须经环境变量 INTERNAL_API_TOKEN 注入，不得写入仓库；
+  #    留空表示"失败关闭"——内部接口一律拒绝（绝不出现未配置即放行）
+  internal:
+    token: ${INTERNAL_API_TOKEN:}
+
+# 租户开关（MVP：默认 false，不影响现有数据；置 true 启用 X-Tenant-Code 隔离）
+tenant:
+  enabled: true
+  # 子域名解析基准域名（P2）：如 ershou.com，则 thu.ershou.com -> tenant_code=thu；置空关闭
+  base-domain: ''
+
+# 商业化 P0：租户计费/订阅开关（默认 true，拦截 ProductMapper INSERT 检查 quota_product_max）
+# 关掉后 TenantQuotaInterceptor 全部放行，零侵入回滚
+billing:
+  enabled: true
+  # P2 扫码续费模拟支付：生产必须 false（走真实网关+回调）；dev 沙箱无密钥时置 true 做端到端演示
+  pay:
+    mock: false
+
+spring:
+  messages:
+    #国际化路径
+    basename: i18n/system/twelvet
+    # 缓存时间（秒）
+    cache-duration: 1800
+  application:
+    # 应用名称
+    name: @artifactId@
+  profiles:
+    active: @active@
+  jackson:
+    default-property-inclusion: non_null
+    time-zone: GMT+8
+  # 文件上传
+  servlet:
+    multipart:
+      # 单个文件大小（AI 创作工作台拆解需上传源视频）
+      max-file-size: 200MB
+      # 设置总上传的文件大小
+      max-request-size: 220MB
+
+# AI 服务:已迁移至 Python FastAPI 服务(twelvet-ai-service)
+ai:
+  service:
+    url: ${AI_SERVICE_URL:http://localhost:8001}
+  moderation:        # AI 初审（docs/AI初审与发布助手设计.md；任务侧均有同名默认值兜底）
+    enabled: true    # 总开关，false 时不跑任何初审
+    auto-action: true # true: low 自动通过 / high 自动驳回+IM通知；false: 仅标注留人工
+    batch-size: 50   # 单轮最多处理条数（防积压首轮拖垮任务）
+
+# 首页推荐打分权重（docs/二手市场首页推荐设计.md；调参无需改代码，代码内均有同名默认值兜底）
+recommend:
+  weights:
+    interest: 0.5     # 兴趣类目命中
+    hot: 0.3          # 趋势热度(hot_score 归一化)
+    recency: 0.2      # 时新度(半衰期14天)
+    quality: 0.05     # 卖家好评率
+    negative: 0.1     # 每条"不感兴趣"扣分(同 cat_l1 封顶3条)
+  ab:                 # A/B 实验：按 userId 稳定分桶，曝光流水带 bucket，CTR 看板按组对比
+    enabled: false    # 开启后 b-percent 比例的登录用户进入 B 组
+    b-percent: 50
+    b:
+      weights:        # B 组实验权重（想验证哪组改哪组，其余继承默认）
+        interest: 0.5
+        hot: 0.3
+        recency: 0.2
+        quality: 0.05
+        negative: 0.1
+
+sa-token:
+  # token名称 (同时也是cookie名称)
+  token-name: Authorization
+  # token前缀
+  token-prefix: Bearer
+  # token有效期，单位s 默认1天, -1代表永不过期
+  timeout: 86400
+  # token临时有效期 (指定时间内无操作就视为token过期) 单位: 秒
+  active-timeout: -1
+  # 是否允许同一账号并发登录 (为true时允许一起登录, 为false时新登录挤掉旧登录)
+  is-concurrent: true
+  # 在多人登录同一账号时，是否共用一个token (为true时所有登录共用一个token, 为false时每次登录新建一个token)
+  is-share: false
+  # token风格
+  token-style: uuid
+  # 是否输出操作日志
+  is-log: false
+# 安全放行路径
+security:
+  # 忽略路径
+  ignore:
+    urls:
+      # 静态资源
+      - /favicon.ico
+      - /*.html
+      - /**/*.html
+      - /**/*.css
+      - /**/*.js
+      # swagger 文档配置
+      - /doc.html
+      - /*/api-docs
+      - /*/api-docs/**
+      - /ai/chat
+
+# Mybatis配置
+mybatis:
+  # 搜索指定包别名
+  typeAliasesPackage: com.twelvet.**.domain
+  # 配置mapper的扫描，找到所有的mapper.xml映射文件
+  mapperLocations: classpath*:mapper/**/*Mapper.xml
+
+# Swagger配置
+swagger:
+  info:
+    # 标题
+    title: '标题：${twelvet.name}后台管理系统_接口文档'
+    # 描述
+    description: '邻里二手 —— 同城闲置交易与社区服务'
+    # 版本
+    version: '版本号: ${twelvet.version}'
+    # 作者信息
+    contact:
+      name: 邻里二手
+      url: https://github.com/lidahen/weiwei
+  components:
+    # 鉴权方式配置
+    security-schemes:
+      apiKey:
+        type: APIKEY
+        in: HEADER
+        name: ${sa-token.token-name}
+
+
+# springdoc-openapi项目配置
+springdoc:
+  swagger-ui:
+    # 是否开启swagger
+    enabled: true
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: 1.系统模块
+      packages-to-scan: com.twelvet.system
+    - group: 2.文件系统模块
+      packages-to-scan: com.twelvet.dfs
+    - group: 3.定时任务模块
+      packages-to-scan: com.twelvet.quartz
+    - group: 4.代码生成模块
+      packages-to-scan: com.twelvet.gen
+    - group: 5.商品模块
+      packages-to-scan: com.twelvet.product
+    - group: 6.交易模块
+      packages-to-scan: com.twelvet.trade
+    - group: 7.IM模块
+      packages-to-scan: com.twelvet.im
+# knife4j的增强配置，不需要增强可以不配
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+
+# 代码生成
+gen:
+  # 作者
+  author: TwelveT
+  # 默认生成包路径 system 需改成自己的模块名称 如 system monitor tool
+  packageName: com.twelvet.server.system
+  # 自动去除表前缀，默认是false
+  autoRemovePre: false
+  # 表前缀（生成类名不会包含表前缀，多个用逗号分隔）
+  tablePrefix: sys_
+
+# 通用OSS S3配置（阿里云OSS）
+oss:
+  # 开启ossTemplate（阿里云OSS真实密钥）
+  enable: true
+  # 本地开发直接读这里的默认值；生产/CI 可用环境变量覆盖而无需改代码：
+  #   setx OSS_ACCESS_KEY "xxx" / setx OSS_SECRET_KEY "xxx"（重开终端生效）
+  #
+  # ⚠️ 2026-09-23 迁移记录：已从旧账号 your-old-account-id（bucket image123qwe）整体迁到
+  #    新账号 your-account-id（bucket your-bucket）。38 个文件已迁移并经
+  #    字节级（MD5）校验一致。旧密钥仍可认证但账号即将到期，勿回退使用。
+  #    ⚠️ 新 bucket 创建时必须同时关闭「阻止公共访问」(BlockPublicAccess)，
+  #       否则即便 ACL=public-read，匿名访问仍返回 403，前端所有图片会挂。
+  accessKey: ${OSS_ACCESS_KEY:}
+  secretKey: ${OSS_SECRET_KEY:}
+  region: ${OSS_REGION:cn-beijing}
+  bucketName: ${OSS_BUCKET:your-bucket}
+  endpoint: ${OSS_ENDPOINT:https://oss-cn-beijing.aliyuncs.com}
+  # 阿里云OSS必须使用virtual-hosted-style（bucketName.endpoint），不能使用path-style（endpoint/bucketName）
+  path-style-access: false
+  # 自带controller
+  http:
+    # 是否开启（默认关闭）
+    enable: false
+    prefix: /s3
+
+# 配置文件加密根密码
+jasypt:
+  encryptor:
+    # 加密口令建议通过 JVM 参数注入: -Djasypt.encryptor.password=<your-strong-password>
+    password:
+    algorithm: PBEWithHmacSHA256AndAES_256
+    iv-generator-classname: org.jasypt.iv.NoIvGenerator
+
+mica:
+  xss:
+    enabled: true
+    trim-text: true
+
+# 短信验证码（C 端手机号登录）
+sms:
+  # mock = 不真发短信，验证码固定 123456 并在接口响应中返回；
+  # aliyun = 真实短信（尚未实现，接入前保持 mock）
+  provider: mock

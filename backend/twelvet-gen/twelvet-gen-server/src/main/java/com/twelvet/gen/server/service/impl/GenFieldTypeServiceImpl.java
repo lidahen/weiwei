@@ -1,0 +1,95 @@
+package com.twelvet.gen.server.service.impl;
+
+import com.twelvet.gen.api.domain.GenFieldType;
+import com.twelvet.framework.security.utils.SecurityUtils;
+import com.twelvet.framework.utils.DateUtils;
+import com.twelvet.gen.server.mapper.GenFieldTypeMapper;
+import com.twelvet.gen.server.service.IGenFieldTypeService;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+/**
+ * 字段类型管理Service业务层处理
+ *
+ * @author TwelveT
+ */
+@Service
+public class GenFieldTypeServiceImpl implements IGenFieldTypeService {
+
+	private final GenFieldTypeMapper genFieldTypeMapper;
+
+	public GenFieldTypeServiceImpl(GenFieldTypeMapper genFieldTypeMapper) {
+		this.genFieldTypeMapper = genFieldTypeMapper;
+	}
+
+	/**
+	 * 查询字段类型管理
+	 * @param id 字段类型管理主键
+	 * @return 字段类型管理
+	 */
+	@Override
+	public GenFieldType selectGenFieldTypeById(Long id) {
+		return genFieldTypeMapper.selectGenFieldTypeById(id);
+	}
+
+	/**
+	 * 查询字段类型管理列表
+	 * @param genFieldType 字段类型管理
+	 * @return 字段类型管理
+	 */
+	@Override
+	public List<GenFieldType> selectGenFieldTypeList(GenFieldType genFieldType) {
+		return genFieldTypeMapper.selectGenFieldTypeList(genFieldType);
+	}
+
+	/**
+	 * 新增字段类型管理
+	 * @param genFieldType 字段类型管理
+	 * @return 结果
+	 */
+	@Override
+	public int insertGenFieldType(GenFieldType genFieldType) {
+		genFieldType.setCreateTime(LocalDateTime.now());
+		String loginUsername = SecurityUtils.getUsername();
+		genFieldType.setCreateBy(loginUsername);
+		genFieldType.setUpdateBy(loginUsername);
+		return genFieldTypeMapper.insertGenFieldType(genFieldType);
+	}
+
+	/**
+	 * 修改字段类型管理
+	 * @param genFieldType 字段类型管理
+	 * @return 结果
+	 */
+	@Override
+	public int updateGenFieldType(GenFieldType genFieldType) {
+		genFieldType.setUpdateTime(LocalDateTime.now());
+		String loginUsername = SecurityUtils.getUsername();
+		genFieldType.setCreateBy(loginUsername);
+		genFieldType.setUpdateBy(loginUsername);
+		return genFieldTypeMapper.updateGenFieldType(genFieldType);
+	}
+
+	/**
+	 * 批量删除字段类型管理
+	 * @param ids 需要删除的字段类型管理主键
+	 * @return 结果
+	 */
+	@Override
+	public int deleteGenFieldTypeByIds(Long[] ids) {
+		return genFieldTypeMapper.deleteGenFieldTypeByIds(ids);
+	}
+
+	/**
+	 * 删除字段类型管理信息
+	 * @param id 字段类型管理主键
+	 * @return 结果
+	 */
+	@Override
+	public int deleteGenFieldTypeById(Long id) {
+		return genFieldTypeMapper.deleteGenFieldTypeById(id);
+	}
+
+}

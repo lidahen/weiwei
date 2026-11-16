@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.product.server.mapper.SearchKeywordLogMapper">
+
+    <insert id="insert">
+        INSERT INTO search_keyword_log (tenant_id, user_id, keyword, create_time)
+        VALUES (#{tenantId}, #{userId}, #{keyword}, NOW())
+    </insert>
+
+    <select id="selectRecentSameKeyword" resultType="int">
+        SELECT 1 FROM search_keyword_log
+        WHERE user_id = #{userId} AND keyword = #{keyword}
+          AND create_time >= DATE_SUB(NOW(), INTERVAL #{minutes} MINUTE)
+        LIMIT 1
+    </select>
+
+    <select id="selectHistory" resultType="string">
+        SELECT keyword FROM search_keyword_log
+        WHERE user_id = #{userId}
+        GROUP BY keyword
+        ORDER BY MAX(create_time) DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectHot" resultType="map">
+        SELECT keyword, COUNT(*) AS cnt
+        FROM search_keyword_log
+        WHERE create_time >= DATE_SUB(NOW(), INTERVAL #{days} DAY)
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        GROUP BY keyword
+        HAVING CHAR_LENGTH(keyword) >= 2
+        ORDER BY cnt DESC, keyword
+        LIMIT #{limit}
+    </select>
+
+    <delete id="deleteByUser">
+        DELETE FROM search_keyword_log WHERE user_id = #{userId}
+    </delete>
+
+    <delete id="deleteOldKeywords">
+        DELETE FROM search_keyword_log WHERE create_time &lt; DATE_SUB(NOW(), INTERVAL #{days} DAY)
+    </delete>
+
+</mapper>

@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.product.server.mapper.UserInterestStatMapper">
+
+    <resultMap id="InterestResult" type="com.twelvet.product.server.domain.UserInterestStat">
+        <id property="id" column="id"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="userId" column="user_id"/>
+        <result property="catL1" column="cat_l1"/>
+        <result property="catL2" column="cat_l2"/>
+        <result property="weight" column="weight"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <!-- 全量重建第一步：清空行为聚合画像（source='init' 的引导种子保留） -->
+    <delete id="deleteAll">
+        DELETE FROM user_interest_stat WHERE source = 'behavior'
+    </delete>
+
+    <!--
+      三段聚合 INSERT ... SELECT：行为权重 浏览1/收藏3/下单5，
+      时间衰减 exp(-ln2/14 × 天数)（半衰期14天），窗口近30天。
+      product_view_log / product_favorite 无 tenant_id 列，租户隔离依赖 JOIN product 显式过滤。
+      收藏/下单段可能与浏览段命中同一 (user, cat) 行 → ON DUPLICATE KEY 累加。
+    -->
+    <insert id="insertViewInterest">
+        INSERT INTO user_interest_stat (tenant_id, user_id, cat_l1, cat_l2, weight, source, update_time)
+        SELECT p.tenant_id, v.user_id, p.cat_l1, COALESCE(p.cat_l2, ''),
+               SUM(1 * EXP(-(LN(2) / 14) * TIMESTAMPDIFF(DAY, v.view_time, NOW()))),
+               'behavior', NOW()
+        FROM product_view_log v
+        JOIN product p ON p.product_id = v.product_id
+        WHERE v.view_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+          AND p.tenant_id IS NOT NULL
+        GROUP BY p.tenant_id, v.user_id, p.cat_l1, COALESCE(p.cat_l2, '')
+    </insert>
+
+    <insert id="insertFavoriteInterest">
+        INSERT INTO user_interest_stat (tenant_id, user_id, cat_l1, cat_l2, weight, source, update_time)
+        SELECT p.tenant_id, f.user_id, p.cat_l1, COALESCE(p.cat_l2, ''),
+               SUM(3 * EXP(-(LN(2) / 14) * TIMESTAMPDIFF(DAY, f.fav_time, NOW()))),
+               'behavior', NOW()
+        FROM product_favorite f
+        JOIN product p ON p.product_id = f.product_id
+        WHERE f.fav_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+          AND p.tenant_id IS NOT NULL
+        GROUP BY p.tenant_id, f.user_id, p.cat_l1, COALESCE(p.cat_l2, '')
+        ON DUPLICATE KEY UPDATE weight = weight + VALUES(weight), update_time = NOW()
+    </insert>
+
+    <insert id="insertOrderInterest">
+        INSERT INTO user_interest_stat (tenant_id, user_id, cat_l1, cat_l2, weight, source, update_time)
+        SELECT p.tenant_id, o.buyer_id, p.cat_l1, COALESCE(p.cat_l2, ''),
+               SUM(5 * EXP(-(LN(2) / 14) * TIMESTAMPDIFF(DAY, o.create_time, NOW()))),
+               'behavior', NOW()
+        FROM trade_order o
+        JOIN product p ON p.product_id = o.product_id
+        WHERE o.status != 'closed'
+          AND o.create_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+          AND p.tenant_id IS NOT NULL
+        GROUP BY p.tenant_id, o.buyer_id, p.cat_l1, COALESCE(p.cat_l2, '')
+        ON DUPLICATE KEY UPDATE weight = weight + VALUES(weight), update_time = NOW()
+    </insert>
+
+    <!-- 实时兴趣：浏览/收藏事件即时 upsert（批量重建每 30 分钟兜底） -->
+    <insert id="bumpInterestByProduct">
+        INSERT INTO user_interest_stat (tenant_id, user_id, cat_l1, cat_l2, weight, source, update_time)
+        SELECT p.tenant_id, #{userId}, p.cat_l1, COALESCE(p.cat_l2, ''), #{weight}, 'behavior', NOW()
+        FROM product p
+        WHERE p.product_id = #{productId} AND p.tenant_id IS NOT NULL
+        ON DUPLICATE KEY UPDATE weight = weight + VALUES(weight), update_time = NOW()
+    </insert>
+
+    <!-- 新用户引导种子（source='init'，重建不清空；重复引导先清旧行） -->
+    <delete id="deleteInitInterest">
+        DELETE FROM user_interest_stat WHERE user_id = #{userId} AND source = 'init'
+    </delete>
+
+    <insert id="insertInitInterest">
+        INSERT INTO user_interest_stat (tenant_id, user_id, cat_l1, cat_l2, weight, source, update_time)
+        VALUES
+        <foreach collection="cats" item="cat" separator=",">
+            (COALESCE(#{tenantId}, 1), #{userId}, #{cat}, '', 5, 'init', NOW())
+        </foreach>
+        ON DUPLICATE KEY UPDATE weight = weight + 2, update_time = NOW()
+    </insert>
+
+    <select id="selectTopCats" resultMap="InterestResult">
+        SELECT NULL AS id, tenant_id, NULL AS user_id, cat_l1, '' AS cat_l2, SUM(weight) AS weight, NULL AS update_time
+        FROM user_interest_stat
+        WHERE user_id = #{userId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        GROUP BY tenant_id, cat_l1
+        ORDER BY weight DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectRecentViewedProductIds" resultType="long">
+        SELECT DISTINCT product_id FROM product_view_log
+        WHERE user_id = #{userId}
+          AND view_time >= DATE_SUB(NOW(), INTERVAL #{days} DAY)
+    </select>
+
+    <insert id="insertViewLog">
+        INSERT INTO product_view_log (product_id, user_id, view_time)
+        VALUES (#{productId}, #{userId}, NOW())
+    </insert>
+
+    <select id="selectRecentViewExists" resultType="int">
+        SELECT 1 FROM product_view_log
+        WHERE user_id = #{userId} AND product_id = #{productId}
+          AND view_time >= DATE_SUB(NOW(), INTERVAL #{minutes} MINUTE)
+        LIMIT 1
+    </select>
+
+    <!-- 详情页"看过又看"：浏览过该商品的用户还在看的其他商品 -->
+    <select id="selectAlsoViewedForProduct" resultType="long">
+        SELECT b.product_id
+        FROM product_view_log a
+        JOIN product_view_log b
+          ON b.user_id = a.user_id AND b.product_id != #{productId}
+         AND b.view_time >= DATE_SUB(NOW(), INTERVAL #{days} DAY)
+        WHERE a.product_id = #{productId}
+          AND a.view_time >= DATE_SUB(NOW(), INTERVAL #{days} DAY)
+        GROUP BY b.product_id
+        ORDER BY COUNT(DISTINCT a.user_id) DESC, b.product_id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectDistinctOnsaleTenants" resultType="long">
+        SELECT DISTINCT tenant_id FROM product WHERE tenant_id IS NOT NULL AND status = 'onsale'
+    </select>
+
+    <!-- 昨日浏览聚合（幂等：重复执行覆盖昨日桶；want/chat 日增量无法从累计值回溯，保持 0） -->
+    <insert id="upsertYesterdayViewStats">
+        INSERT INTO product_stats_daily (product_id, date, view_count, want_count, chat_count)
+        SELECT product_id, CURDATE() - INTERVAL 1 DAY, COUNT(DISTINCT id), 0, 0
+        FROM product_view_log
+        WHERE view_time >= CURDATE() - INTERVAL 1 DAY AND view_time &lt; CURDATE()
+        GROUP BY product_id
+        ON DUPLICATE KEY UPDATE view_count = VALUES(view_count)
+    </insert>
+
+    <delete id="deleteOldViewLogs">
+        DELETE FROM product_view_log WHERE view_time &lt; DATE_SUB(NOW(), INTERVAL #{days} DAY)
+    </delete>
+
+    <delete id="deleteOldDislikes">
+        DELETE FROM user_dislike_log WHERE create_time &lt; DATE_SUB(NOW(), INTERVAL #{days} DAY)
+    </delete>
+
+    <!-- "看过又看"：与 seed 商品有共同浏览者的其他商品，按共现用户数倒序（行为协同） -->
+    <select id="selectAlsoViewed" resultType="long">
+        SELECT b.product_id
+        FROM product_view_log a
+        JOIN product_view_log b
+          ON b.user_id = a.user_id AND b.product_id != a.product_id
+         AND b.view_time >= DATE_SUB(NOW(), INTERVAL #{days} DAY)
+        WHERE a.product_id IN
+        <foreach collection="seedIds" item="sid" open="(" separator="," close=")">#{sid}</foreach>
+          AND a.view_time >= DATE_SUB(NOW(), INTERVAL #{days} DAY)
+          AND b.product_id NOT IN
+        <foreach collection="seedIds" item="sid" open="(" separator="," close=")">#{sid}</foreach>
+        GROUP BY b.product_id
+        ORDER BY COUNT(DISTINCT a.user_id) DESC, b.product_id DESC
+        LIMIT #{limit}
+    </select>
+
+    <insert id="insertDislike">
+        INSERT INTO user_dislike_log (tenant_id, user_id, product_id, cat_l1, create_time)
+        SELECT COALESCE(#{tenantId}, p.tenant_id), #{userId}, #{productId}, p.cat_l1, NOW()
+        FROM product p
+        WHERE p.product_id = #{productId}
+    </insert>
+
+    <select id="selectUserDislikes" resultType="map">
+        SELECT product_id AS productId, cat_l1 AS catL1
+        FROM user_dislike_log
+        WHERE user_id = #{userId}
+          AND create_time >= DATE_SUB(NOW(), INTERVAL #{days} DAY)
+    </select>
+
+</mapper>

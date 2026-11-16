@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.exchange.server.mapper.ExchangeReviewMapper">
+
+    <resultMap id="ReviewResult" type="com.twelvet.exchange.server.domain.ExchangeReview">
+        <id property="id" column="id"/>
+        <result property="orderId" column="order_id"/>
+        <result property="reviewerId" column="reviewer_id"/>
+        <result property="revieweeId" column="reviewee_id"/>
+        <result property="score" column="score"/>
+        <result property="content" column="content"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="review.id">
+        INSERT INTO twelve_exchange_review
+            (order_id, reviewer_id, reviewee_id, score, content, create_time, tenant_id)
+        VALUES
+            (#{review.orderId}, #{review.reviewerId}, #{review.revieweeId}, #{review.score}, #{review.content},
+             NOW(), #{tenantId})
+    </insert>
+
+    <select id="selectByOrderAndReviewer" resultMap="ReviewResult">
+        SELECT id, order_id, reviewer_id, reviewee_id, score, content, create_time
+        FROM twelve_exchange_review
+        WHERE order_id = #{orderId} AND reviewer_id = #{reviewerId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        LIMIT 1
+    </select>
+
+    <select id="selectByOrderId" resultMap="ReviewResult">
+        SELECT id, order_id, reviewer_id, reviewee_id, score, content, create_time
+        FROM twelve_exchange_review
+        WHERE order_id = #{orderId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        ORDER BY create_time ASC
+    </select>
+
+    <!-- 用户换物画像：被评次数 + 平均分（换物主页摘要） -->
+    <select id="selectOwnerProfile" resultType="map">
+        SELECT
+            COUNT(*) AS reviewCount,
+            AVG(score) AS avgScore
+        FROM twelve_exchange_review
+        WHERE reviewee_id = #{userId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </select>
+
+    <!-- 信用画像：聚合订单 + 违约日志 + 评价（实时计算，无冗余表，docs/交换广场二期-智能匹配与信用设计.md §4.4）
+         违约归因口径（MVP 近似）：用户直接违约（cancel/dispute）按 order_log.operator_id 记本人；
+         timeout/admin_force_cancel 为系统/管理员动作（operator_id 记 0/管理员），按订单参与方 JOIN 双方各计一次 -->
+    <select id="selectCreditProfile" resultType="java.util.HashMap">
+        SELECT
+            (SELECT COUNT(*) FROM twelve_exchange_order o
+                WHERE (o.owner_a_id = #{userId} OR o.owner_b_id = #{userId})
+                  AND o.status = 'completed'
+                  AND o.complete_time &gt;= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>) AS completedOrders30d,
+            (SELECT COUNT(*) FROM twelve_exchange_order o
+                WHERE (o.owner_a_id = #{userId} OR o.owner_b_id = #{userId})
+                  AND o.create_time &gt;= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>) AS totalOrders30d,
+            (SELECT COUNT(*) FROM twelve_exchange_order_log l
+                WHERE l.operator_id = #{userId} AND l.action IN ('cancel', 'dispute')
+                  AND l.create_time &gt;= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                <if test="tenantId != null">AND l.tenant_id = #{tenantId}</if>) AS directPenaltyCount30d,
+            (SELECT COUNT(*) FROM twelve_exchange_order_log l
+                JOIN twelve_exchange_order o ON o.id = l.order_id
+                WHERE l.action IN ('timeout', 'admin_force_cancel')
+                  AND (o.owner_a_id = #{userId} OR o.owner_b_id = #{userId})
+                  AND l.create_time &gt;= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                <if test="tenantId != null">AND l.tenant_id = #{tenantId}</if>) AS systemPenaltyCount30d,
+            (SELECT ROUND(AVG(r.score), 1) FROM twelve_exchange_review r
+                WHERE r.reviewee_id = #{userId}
+                <if test="tenantId != null">AND r.tenant_id = #{tenantId}</if>) AS avgScore,
+            (SELECT COUNT(*) FROM twelve_exchange_review r
+                WHERE r.reviewee_id = #{userId}
+                <if test="tenantId != null">AND r.tenant_id = #{tenantId}</if>) AS reviewCount
+    </select>
+
+</mapper>

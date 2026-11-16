@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.runner.server.mapper.RunnerTaskLogMapper">
+
+    <resultMap id="LogResult" type="com.twelvet.runner.api.domain.RunnerTaskLog">
+        <id property="id" column="id"/>
+        <result property="taskId" column="task_id"/>
+        <result property="operatorId" column="operator_id"/>
+        <result property="action" column="action"/>
+        <result property="remark" column="remark"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <!-- 多参数方法：keyProperty 必须带参数名，否则 MyBatis 无法回填自增主键 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="log.id">
+        INSERT INTO twelve_runner_task_log (task_id, operator_id, action, remark, create_time, tenant_id)
+        VALUES (#{log.taskId}, #{log.operatorId}, #{log.action}, #{log.remark}, NOW(), #{tenantId})
+    </insert>
+
+    <select id="selectByTaskId" resultMap="LogResult">
+        SELECT id, task_id, operator_id, action, remark, create_time
+        FROM twelve_runner_task_log
+        WHERE task_id = #{taskId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        ORDER BY create_time ASC
+    </select>
+
+</mapper>

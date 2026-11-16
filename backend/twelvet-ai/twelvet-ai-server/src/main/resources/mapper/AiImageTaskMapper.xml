@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.ai.server.mapper.AiImageTaskMapper">
+
+    <resultMap type="com.twelvet.ai.api.domain.AiImageTask" id="AiImageTaskResult">
+        <result property="taskId" column="task_id"/>
+        <result property="modelId" column="model_id"/>
+        <result property="prompt" column="prompt"/>
+        <result property="negativePrompt" column="negative_prompt"/>
+        <result property="size" column="size"/>
+        <result property="genType" column="gen_type"/>
+        <result property="inputImage" column="input_image"/>
+        <result property="responseFormat" column="response_format"/>
+        <result property="width" column="width"/>
+        <result property="height" column="height"/>
+        <result property="seed" column="seed"/>
+        <result property="style" column="style"/>
+        <result property="resultUrl" column="result_url"/>
+        <result property="status" column="status"/>
+        <result property="errorMsg" column="error_msg"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="delFlag" column="del_flag"/>
+    </resultMap>
+
+    <sql id="selectAiImageTaskVo">
+        select task_id, model_id, prompt, negative_prompt, size, gen_type, input_image, response_format, width, height, seed, style, result_url, status, error_msg, create_by, create_time, update_time, del_flag
+        from ai_image_task
+    </sql>
+
+    <select id="selectAiImageTaskById" parameterType="Long" resultMap="AiImageTaskResult">
+        <include refid="selectAiImageTaskVo"/>
+        where task_id = #{taskId} and del_flag = 0
+    </select>
+
+    <select id="selectAiImageTaskList" parameterType="com.twelvet.ai.api.domain.AiImageTask" resultMap="AiImageTaskResult">
+        <include refid="selectAiImageTaskVo"/>
+        <where>
+            del_flag = 0
+            <if test="modelId != null">
+                AND model_id = #{modelId}
+            </if>
+            <if test="prompt != null and prompt != ''">
+                AND prompt like concat('%', #{prompt}, '%')
+            </if>
+            <if test="size != null and size != ''">
+                AND size = #{size}
+            </if>
+            <if test="genType != null and genType != ''">
+                AND gen_type = #{genType}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <insert id="insertAiImageTask" parameterType="com.twelvet.ai.api.domain.AiImageTask" useGeneratedKeys="true" keyProperty="taskId">
+        insert into ai_image_task
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="modelId != null">model_id,</if>
+            <if test="prompt != null and prompt != ''">prompt,</if>
+            <if test="negativePrompt != null and negativePrompt != ''">negative_prompt,</if>
+            <if test="size != null and size != ''">size,</if>
+            <if test="genType != null and genType != ''">gen_type,</if>
+            <if test="inputImage != null and inputImage != ''">input_image,</if>
+            <if test="responseFormat != null and responseFormat != ''">response_format,</if>
+            <if test="width != null">width,</if>
+            <if test="height != null">height,</if>
+            <if test="seed != null">seed,</if>
+            <if test="style != null and style != ''">style,</if>
+            <if test="resultUrl != null and resultUrl != ''">result_url,</if>
+            <if test="status != null and status != ''">status,</if>
+            <if test="errorMsg != null and errorMsg != ''">error_msg,</if>
+            <if test="createBy != null">create_by,</if>
+            create_time
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="modelId != null">#{modelId},</if>
+            <if test="prompt != null and prompt != ''">#{prompt},</if>
+            <if test="negativePrompt != null and negativePrompt != ''">#{negativePrompt},</if>
+            <if test="size != null and size != ''">#{size},</if>
+            <if test="genType != null and genType != ''">#{genType},</if>
+            <if test="inputImage != null and inputImage != ''">#{inputImage},</if>
+            <if test="responseFormat != null and responseFormat != ''">#{responseFormat},</if>
+            <if test="width != null">#{width},</if>
+            <if test="height != null">#{height},</if>
+            <if test="seed != null">#{seed},</if>
+            <if test="style != null and style != ''">#{style},</if>
+            <if test="resultUrl != null and resultUrl != ''">#{resultUrl},</if>
+            <if test="status != null and status != ''">#{status},</if>
+            <if test="errorMsg != null and errorMsg != ''">#{errorMsg},</if>
+            <if test="createBy != null">#{createBy},</if>
+            sysdate()
+        </trim>
+    </insert>
+
+    <update id="updateAiImageTask" parameterType="com.twelvet.ai.api.domain.AiImageTask">
+        update ai_image_task
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="modelId != null">model_id = #{modelId},</if>
+            <if test="prompt != null and prompt != ''">prompt = #{prompt},</if>
+            <if test="negativePrompt != null and negativePrompt != ''">negative_prompt = #{negativePrompt},</if>
+            <if test="size != null and size != ''">size = #{size},</if>
+            <if test="genType != null and genType != ''">gen_type = #{genType},</if>
+            <if test="inputImage != null and inputImage != ''">input_image = #{inputImage},</if>
+            <if test="responseFormat != null and responseFormat != ''">response_format = #{responseFormat},</if>
+            <if test="width != null">width = #{width},</if>
+            <if test="height != null">height = #{height},</if>
+            <if test="seed != null">seed = #{seed},</if>
+            <if test="style != null and style != ''">style = #{style},</if>
+            <if test="resultUrl != null and resultUrl != ''">result_url = #{resultUrl},</if>
+            <if test="status != null and status != ''">status = #{status},</if>
+            <if test="errorMsg != null and errorMsg != ''">error_msg = #{errorMsg},</if>
+            update_time = sysdate()
+        </trim>
+        where task_id = #{taskId}
+    </update>
+
+    <update id="deleteAiImageTaskById" parameterType="Long">
+        update ai_image_task set del_flag = 1 where task_id = #{taskId}
+    </update>
+
+    <update id="deleteAiImageTaskByIds" parameterType="Long">
+        update ai_image_task set del_flag = 1 where task_id in
+        <foreach item="taskId" collection="array" open="(" separator="," close=")">
+            #{taskId}
+        </foreach>
+    </update>
+
+</mapper>

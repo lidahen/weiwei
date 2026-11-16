@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>twelvet-dfs</artifactId>
+        <groupId>com.twelvet</groupId>
+        <version>3.5.4</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>twelvet-dfs-server</artifactId>
+
+    <dependencies>
+
+        <!--默认采用多数据-->
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-datasource</artifactId>
+        </dependency>
+
+        <!-- jdbc -->
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-jdbc</artifactId>
+        </dependency>
+
+        <!-- fast dfs api -->
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-dfs-api</artifactId>
+        </dependency>
+
+        <!-- 日志模块 -->
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-log</artifactId>
+        </dependency>
+
+        <!-- 安全模块 -->
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-security</artifactId>
+        </dependency>
+
+        <!-- utils模块 -->
+        <dependency>
+            <groupId>com.twelvet</groupId>
+            <artifactId>twelvet-framework-utils</artifactId>
+        </dependency>
+
+        <!--通用OSS-->
+        <dependency>
+            <groupId>com.pig4cloud.plugin</groupId>
+            <artifactId>oss-spring-boot-starter</artifactId>
+        </dependency>
+
+    </dependencies>
+
+</project>

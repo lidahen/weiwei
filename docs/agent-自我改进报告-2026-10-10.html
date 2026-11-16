@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent 自我改进报告 · 2026-10-10</title>
+<style>
+  :root {
+    --bg: #f8f9fb; --paper: #ffffff; --ink: #1f2430; --ink-2: #4a5264; --ink-3: #7a8296;
+    --line: #e4e7ee; --accent: #2456d6; --accent-soft: #eef3ff;
+    --new-bg: #eaf7ef; --new-ink: #1c7a44; --obs-bg: #fff7e8; --obs-ink: #8a5a12;
+    --code-bg: #f1f3f8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif; background: var(--bg); color: var(--ink); line-height: 1.75; font-size: 15.5px; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 40px 28px 80px; }
+  header.hero { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 36px 36px 28px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 600; font-size: 13.5px; letter-spacing: .08em; margin-bottom: 8px; }
+  h1 { font-size: 28px; line-height: 1.3; margin-bottom: 14px; }
+  .meta { color: var(--ink-3); font-size: 13.5px; }
+  .meta b { color: var(--ink-2); }
+  .hero p.lead { margin-top: 14px; color: var(--ink-2); }
+  h2 { font-size: 21px; margin: 44px 0 16px; padding-left: 14px; border-left: 4px solid var(--accent); line-height: 1.4; }
+  p { margin: 10px 0; color: var(--ink-2); }
+  section.card { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 24px 28px; margin-bottom: 20px; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 2px 10px; margin-right: 6px; vertical-align: 1px; }
+  .tag-new { background: var(--new-bg); color: var(--new-ink); }
+  .tag-obs { background: var(--obs-bg); color: var(--obs-ink); }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+  th { text-align: left; background: var(--accent-soft); color: var(--ink); padding: 9px 12px; border: 1px solid var(--line); font-size: 13.5px; }
+  td { padding: 9px 12px; border: 1px solid var(--line); color: var(--ink-2); vertical-align: top; }
+  td b, td strong { color: var(--ink); }
+  ul, ol { margin: 10px 0 10px 22px; color: var(--ink-2); }
+  li { margin: 5px 0; }
+  code { background: var(--code-bg); border-radius: 5px; padding: 1px 6px; font-family: Consolas, "Courier New", monospace; font-size: 13.5px; color: var(--ink); }
+  .callout { border-left: 4px solid #e8a23d; background: var(--obs-bg); border-radius: 0 10px 10px 0; padding: 14px 18px; margin: 14px 0; color: var(--obs-ink); font-size: 14.5px; }
+  .deliver { margin-top: 10px; padding: 10px 14px; background: var(--accent-soft); border-radius: 8px; font-size: 14px; color: var(--ink); }
+  .deliver::before { content: "✅ 验收："; font-weight: 600; color: var(--accent); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .footer { margin-top: 48px; color: var(--ink-3); font-size: 13px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">AGENT SELF-IMPROVEMENT REPORT · ROUND 1</div>
+  <h1>Agent 自我改进报告（第 1 轮）</h1>
+  <div class="meta">依据：<b>《AI Agent 学习路线（2026 年 10 月时效修订版）》</b> · 执行日期：<b>2026-10-10</b> · 落地范围：<b>仅项目级</b>（遵用户约束，不写用户级记忆）</div>
+  <p class="lead">本报告记录按路线图执行的一轮完整自改进循环：<b>摄入（5 个核心引用源）→ 提炼（三类改进项）→ 落地（1 个项目级 skill + 项目记忆）→ 验收（smoke test 20/20 通过）</b>。作为 LLM，agent 的"自我改进"不改变模型权重，而是通过记忆、技能与工作流约定三层持久化实现。</p>
+</header>
+
+<!-- 1 -->
+<section class="card">
+  <h2>一、摄入成果（Step 1：Ingest）</h2>
+  <p>并行抓取文档核心引用，直接抓取失败的源降级用搜索通道取权威要点。每源提炼可执行要点（完整笔记见 <code>.workbuddy/skills/agent-self-improvement/references/roadmap-distilled.md</code>）：</p>
+  <table>
+    <tr><th style="width:26%">来源</th><th style="width:16%">获取方式</th><th>关键收获</th></tr>
+    <tr>
+      <td><a href="https://www.anthropic.com/engineering/building-effective-agents">Anthropic · Building Effective Agents</a></td><td>搜索</td>
+      <td>workflow（代码定义控制流）与 agent（模型定义控制流）的分界；五大可组合模式（chaining / routing / parallelization / orchestrator-workers / evaluator-optimizer）及各自成本类；最简优先——先优化单次调用再考虑 agentic。</td>
+    </tr>
+    <tr>
+      <td><a href="https://modelcontextprotocol.io/specification/2026-07-28">MCP 规范 2026-07-28</a></td><td>直抓成功</td>
+      <td>协议核心无状态化（self-contained requests、per-request 能力协商）；扩展机制（Tasks / Skills over MCP / MCP Apps）；安全原则——<b>工具描述与 annotation 视为不可信</b>，认证权限需宿主自行实现。</td>
+    </tr>
+    <tr>
+      <td><a href="https://github.com/unreallabsai/unreal-agent">Unreal Agent</a></td><td>直抓成功</td>
+      <td>异步优先范式：工具调用记为 in-progress 事件日志即返回，Operation 后台持久执行、完成后追加 session log；同通过率下成本比 Codex 低约 39%。组件全接口化（inbox / coordinator / session store / context builder / translator…），session 与 operation 均带版本。</td>
+    </tr>
+    <tr>
+      <td><a href="https://github.com/EverMind-AI/Raven">Raven</a></td><td>直抓成功</td>
+      <td>自进化闭环：诊断失败 → 提出修改 → 可复现评测对比基线 → 只保留通过验证的改动（<b>先验证后安装，失败打回</b>）；四个解耦策略模块（Memory / Planning / Capability / Action）。pre-alpha，观察不重押。</td>
+    </tr>
+    <tr>
+      <td><a href="https://github.com/shareAI-lab/learn-claude-code">learn-claude-code</a></td><td>搜索</td>
+      <td>agent = while 循环，主循环 17 章不改一行；机制分层（dispatch map → planning → subagents → skills → compact → tasks → teams → isolation）；skill 经 tool_result 注入而非 system prompt。</td>
+    </tr>
+  </table>
+</section>
+
+<!-- 2 -->
+<section class="card">
+  <h2>二、提炼与落地（Step 2–3：Distill & Apply）</h2>
+  <p>改进项按「有对应失败/缺口案例才落地」原则筛选，落地物全部限制在项目级 <code>.workbuddy/</code>：</p>
+  <table>
+    <tr><th style="width:8%">类型</th><th style="width:38%">落地物</th><th>内容</th></tr>
+    <tr>
+      <td><span class="tag tag-new">技能</span></td>
+      <td><code>.workbuddy/skills/agent-self-improvement/SKILL.md</code></td>
+      <td>四步自改进循环（摄入 → 提炼 → 落地 → 验收），含三类改进项判定表、项目级边界约束（<b>不写用户级记忆</b>）、6 条长期工作流原则。</td>
+    </tr>
+    <tr>
+      <td><span class="tag tag-new">技能</span></td>
+      <td><code>…/references/roadmap-distilled.md</code></td>
+      <td>五个来源的精华笔记 + 协议栈四层格局表（MCP / A2A / ACP / WebMCP，均附原文链接），供后续会话按需加载。</td>
+    </tr>
+    <tr>
+      <td><span class="tag tag-new">技能</span></td>
+      <td><code>…/scripts/smoke_test.py</code></td>
+      <td>skill 结构校验脚本：frontmatter 完整性、必需章节、约束条款、引用链接存在性、无残留占位符。</td>
+    </tr>
+    <tr>
+      <td><span class="tag tag-new">记忆</span></td>
+      <td><code>.workbuddy/memory/2026-10-10.md</code></td>
+      <td>当日工作日志：本轮改进的完整记录 + 两个观察项。</td>
+    </tr>
+    <tr>
+      <td><span class="tag tag-new">记忆</span></td>
+      <td><code>.workbuddy/memory/MEMORY.md</code>（新增小节）</td>
+      <td>长期约定：自改进 skill 位置、用户级记忆禁令、6 条工作流原则摘要。</td>
+    </tr>
+  </table>
+
+  <h3>已采纳的工作流原则（写入 SKILL.md，长期生效）</h3>
+  <ol>
+    <li><b>最简优先</b>：能 workflow 不 agent；按成本类选用 Anthropic 五模式。</li>
+    <li><b>评测先行</b>：增加 agent 复杂度之前先建固定测试集与失败分类。</li>
+    <li><b>trace 留痕</b>：重要运行记录 trace，失败归因到 prompt / 工具 / 检索 / 模型 / 状态管理。</li>
+    <li><b>机制分层</b>：loop 属于 agent、机制属于 harness——加能力改外层，不动核心循环。</li>
+    <li><b>安全边界</b>：工具 annotation 不可信；危险动作保留人工确认。</li>
+    <li><b>时效铁律</b>：6 个月以上教程先核对官方 changelog；评估 harness 而非模型。</li>
+  </ol>
+</section>
+
+<!-- 3 -->
+<section class="card">
+  <h2>三、验收结果（Step 4：Verify）</h2>
+  <div class="deliver">smoke_test.py <b>20/20 PASS</b>：frontmatter（name / description / agent_created）、5 个必需章节、2 条边界约束条款、5 个引用链接、无残留占位符。执行中发现并修复 1 处脚本缺陷（域名提取索引越界），修复后重跑通过——本身就是「评测先行 + trace 留痕」原则的实例。</div>
+  <ul>
+    <li>误建到用户级 skills 目录的骨架已清理，最终结构仅存在于项目内（符合约束）。</li>
+    <li>报告（本文件）含学什么 / 改什么 / 验收 / 未采纳项四要素，交付方式为 present_files（符合 SKILL.md 验收标准）。</li>
+  </ul>
+</section>
+
+<!-- 4 -->
+<section class="card">
+  <h2>四、未采纳与观察项（附原因）</h2>
+  <table>
+    <tr><th style="width:34%">项</th><th style="width:14%">处置</th><th>原因</th></tr>
+    <tr><td>Unreal Agent 的 prompt cache 友好事件日志设计</td><td><span class="tag tag-obs">观察</span></td><td>当前项目无 LLM 调用成本痛点，无失败案例支撑；若 ai-service 后续出现成本问题再启用。</td></tr>
+    <tr><td>Raven Evolver 式 harness 自进化闭环</td><td><span class="tag tag-obs">观察</span></td><td>pre-alpha，接口不稳定；其「先验证后安装」思想已吸收进 SKILL.md 第 3 步。</td></tr>
+    <tr><td>托管 Harness API（OpenAI Agents API）路径</td><td><span class="tag tag-obs">观察</span></td><td>数据驻留限制 + 平台绑定；当前无上线需求。</td></tr>
+    <tr><td>role-play 式多 agent 框架（CrewAI / AutoGen 老用法）</td><td>不采纳</td><td>路线图明确预警；托管 Harness API 化进一步压缩其生存空间。</td></tr>
+  </table>
+</section>
+
+<!-- 5 -->
+<section class="card">
+  <h2>五、下一轮迭代计划（对照路线图 Project Ladder）</h2>
+  <table>
+    <tr><th style="width:8%">级</th><th style="width:34%">项目</th><th>与本项目的结合点</th></tr>
+    <tr><td>2</td><td>Web Research Agent</td><td>本轮摄入流程的自动化版本：引用链接批量抓取 + 权威要点提炼，可直接封装为第二个 skill。</td></tr>
+    <tr><td>8</td><td>Reusable Skill Pack</td><td>把 smoke test 扩展为通用 skill 质量门禁，纳入所有未来 skill 的落地流程。</td></tr>
+    <tr><td>11</td><td>Production Harness</td><td>为 weiwei 的 ai-service 增加 eval 集与 trace 记录，再评估是否引入异步工具执行（观察项 1）。</td></tr>
+  </table>
+  <p>节奏建议：每季度对照 MCP / A2A / ACP / WebMCP 官方 changelog 复查一次时效性（路线图原则）。</p>
+</section>
+
+<div class="footer">Round 1 · 执行与验收均在 2026-10-10 完成 · 下一轮触发条件：出现新失败案例或协议规范变更</div>
+
+</div>
+</body>
+</html>

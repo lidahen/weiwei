@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.exchange.server.mapper.ExchangeOfferMapper">
+
+    <resultMap id="OfferResult" type="com.twelvet.exchange.api.domain.ExchangeOffer">
+        <id property="id" column="id"/>
+        <result property="itemId" column="item_id"/>
+        <result property="ownerId" column="owner_id"/>
+        <result property="offerorId" column="offeror_id"/>
+        <result property="offerItemId" column="offer_item_id"/>
+        <result property="offerSnapshot" column="offer_snapshot"/>
+        <result property="message" column="message"/>
+        <result property="diffAmount" column="diff_amount"/>
+        <result property="status" column="status"/>
+        <result property="expireTime" column="expire_time"/>
+        <result property="handleTime" column="handle_time"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="tenantId" column="tenant_id"/>
+    </resultMap>
+
+    <sql id="offerCols">
+        id, item_id, owner_id, offeror_id, offer_item_id, offer_snapshot, message, diff_amount,
+        status, expire_time, handle_time, create_time, update_time, tenant_id
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO twelve_exchange_offer
+            (item_id, owner_id, offeror_id, offer_item_id, offer_snapshot, message, diff_amount,
+             status, expire_time, create_time, update_time, tenant_id)
+        VALUES
+            (#{itemId}, #{ownerId}, #{offerorId}, #{offerItemId}, #{offerSnapshot}, #{message}, #{diffAmount},
+             #{status}, #{expireTime}, NOW(), NOW(), #{tenantId})
+    </insert>
+
+    <!-- 原子防重插入：同租户同物品同人已有 pending 时插入 0 行（A3 并发竞态根治） -->
+    <insert id="insertIfNoPending" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO twelve_exchange_offer
+            (item_id, owner_id, offeror_id, offer_item_id, offer_snapshot, message, diff_amount,
+             status, expire_time, create_time, update_time, tenant_id)
+        SELECT #{itemId}, #{ownerId}, #{offerorId}, #{offerItemId}, #{offerSnapshot}, #{message}, #{diffAmount},
+               #{status}, #{expireTime}, NOW(), NOW(), #{tenantId}
+        FROM DUAL
+        WHERE NOT EXISTS (
+            SELECT 1 FROM twelve_exchange_offer
+            WHERE tenant_id = #{tenantId} AND item_id = #{itemId} AND offeror_id = #{offerorId}
+              AND status = 'pending'
+        )
+    </insert>
+
+    <!-- 物品下架时批量关闭未决意向（A2） -->
+    <update id="closePendingByItem">
+        UPDATE twelve_exchange_offer
+        SET status = 'closed', handle_time = NOW(), update_time = NOW()
+        WHERE item_id = #{itemId} AND status = 'pending'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <select id="selectById" resultMap="OfferResult">
+        SELECT <include refid="offerCols"/>
+        FROM twelve_exchange_offer
+        WHERE id = #{offerId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </select>
+
+    <select id="countPendingByItemAndOfferor" resultType="int">
+        SELECT COUNT(*)
+        FROM twelve_exchange_offer
+        WHERE item_id = #{itemId} AND offeror_id = #{offerorId} AND status = 'pending'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </select>
+
+    <!-- 我收到的意向（pending 优先） -->
+    <select id="selectReceived" resultMap="OfferResult">
+        SELECT <include refid="offerCols"/>
+        FROM twelve_exchange_offer
+        WHERE owner_id = #{ownerId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        ORDER BY CASE WHEN status = 'pending' THEN 0 ELSE 1 END, create_time DESC
+        <if test="limit != null and limit > 0">LIMIT #{limit}</if>
+    </select>
+
+    <!-- 我发出的意向 -->
+    <select id="selectSent" resultMap="OfferResult">
+        SELECT <include refid="offerCols"/>
+        FROM twelve_exchange_offer
+        WHERE offeror_id = #{offerorId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        ORDER BY create_time DESC
+        <if test="limit != null and limit > 0">LIMIT #{limit}</if>
+    </select>
+
+    <!-- 接受意向第一步：意向占位（pending → accepted，未过期才允许） -->
+    <update id="acceptAtomically">
+        UPDATE twelve_exchange_offer
+        SET status = 'accepted', handle_time = NOW(), update_time = NOW()
+        WHERE id = #{offerId} AND status = 'pending' AND expire_time &gt; #{now}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 婉拒（物品主人：pending → rejected） -->
+    <update id="rejectAtomically">
+        UPDATE twelve_exchange_offer
+        SET status = 'rejected', handle_time = NOW(), update_time = NOW()
+        WHERE id = #{offerId} AND owner_id = #{ownerId} AND status = 'pending'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 撤回（发起人：pending → withdrawn） -->
+    <update id="withdrawAtomically">
+        UPDATE twelve_exchange_offer
+        SET status = 'withdrawn', handle_time = NOW(), update_time = NOW()
+        WHERE id = #{offerId} AND offeror_id = #{offerorId} AND status = 'pending'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 物品成交后批量婉拒其余 pending 意向 -->
+    <update id="rejectOthersPending">
+        UPDATE twelve_exchange_offer
+        SET status = 'rejected', handle_time = NOW(), update_time = NOW()
+        WHERE item_id = #{itemId} AND id != #{keepOfferId} AND status = 'pending'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <select id="selectPendingByItem" resultMap="OfferResult">
+        SELECT <include refid="offerCols"/>
+        FROM twelve_exchange_offer
+        WHERE item_id = #{itemId} AND status = 'pending'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </select>
+
+    <!-- 扫过期未处理意向（pending 且 expire_time 已过） -->
+    <select id="selectExpiredPending" resultMap="OfferResult">
+        SELECT <include refid="offerCols"/>
+        FROM twelve_exchange_offer
+        WHERE status = 'pending' AND expire_time &lt;= #{now}
+        <!-- 定时任务全局扫描（跨租户），租户隔离由下游逐行以意向自身 tenant_id 处理；
+             勿加 tenantId 条件：接口无该参数，MyBatis 绑定时会抛 Parameter not found -->
+        <if test="limit != null and limit > 0">LIMIT #{limit}</if>
+    </select>
+
+    <!-- 意向过期（pending → expired） -->
+    <update id="expireAtomically">
+        UPDATE twelve_exchange_offer
+        SET status = 'expired', update_time = NOW()
+        WHERE id = #{offerId} AND status = 'pending'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <select id="selectStatistics" resultType="map">
+        SELECT
+            COUNT(*) AS totalOffers,
+            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pendingOffers,
+            SUM(CASE WHEN status = 'accepted' THEN 1 ELSE 0 END) AS acceptedOffers
+        FROM twelve_exchange_offer
+        <where>
+            <if test="tenantId != null">tenant_id = #{tenantId}</if>
+        </where>
+    </select>
+
+</mapper>

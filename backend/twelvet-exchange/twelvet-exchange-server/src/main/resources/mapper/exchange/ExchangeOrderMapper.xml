@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.exchange.server.mapper.ExchangeOrderMapper">
+
+    <resultMap id="OrderResult" type="com.twelvet.exchange.api.domain.ExchangeOrder">
+        <id property="id" column="id"/>
+        <result property="orderNo" column="order_no"/>
+        <result property="offerId" column="offer_id"/>
+        <result property="itemAId" column="item_a_id"/>
+        <result property="itemBId" column="item_b_id"/>
+        <result property="ownerAId" column="owner_a_id"/>
+        <result property="ownerBId" column="owner_b_id"/>
+        <result property="deliveryMode" column="delivery_mode"/>
+        <result property="status" column="status"/>
+        <result property="aDeliveredTime" column="a_delivered_time"/>
+        <result property="bDeliveredTime" column="b_delivered_time"/>
+        <result property="aConfirmedTime" column="a_confirmed_time"/>
+        <result property="bConfirmedTime" column="b_confirmed_time"/>
+        <result property="aTrackNo" column="a_track_no"/>
+        <result property="bTrackNo" column="b_track_no"/>
+        <result property="cancelReason" column="cancel_reason"/>
+        <result property="disputeReason" column="dispute_reason"/>
+        <result property="disputeResult" column="dispute_result"/>
+        <result property="completeTime" column="complete_time"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="itemATitle" column="item_a_title"/>
+        <result property="itemBTitle" column="item_b_title"/>
+        <result property="ownerAName" column="owner_a_name"/>
+        <result property="ownerBName" column="owner_b_name"/>
+    </resultMap>
+
+    <sql id="orderCols">
+        id, order_no, offer_id, item_a_id, item_b_id, owner_a_id, owner_b_id, delivery_mode, status,
+        a_delivered_time, b_delivered_time, a_confirmed_time, b_confirmed_time, a_track_no, b_track_no,
+        cancel_reason, dispute_reason, dispute_result, complete_time, create_time, update_time, tenant_id
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO twelve_exchange_order
+            (order_no, offer_id, item_a_id, item_b_id, owner_a_id, owner_b_id, delivery_mode, status,
+             create_time, update_time, tenant_id)
+        VALUES
+            (#{orderNo}, #{offerId}, #{itemAId}, #{itemBId}, #{ownerAId}, #{ownerBId}, #{deliveryMode}, #{status},
+             NOW(), NOW(), #{tenantId})
+    </insert>
+
+    <select id="selectById" resultMap="OrderResult">
+        SELECT <include refid="orderCols"/>
+        FROM twelve_exchange_order
+        WHERE id = #{orderId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </select>
+
+    <!-- 我的交换订单（A/B 双视角） -->
+    <!-- 我的订单分页（statuses 为空 = 全部；B5 真分页） -->
+    <select id="selectMyOrdersPage" resultMap="OrderResult">
+        SELECT <include refid="orderCols"/>
+        FROM twelve_exchange_order
+        WHERE (owner_a_id = #{userId} OR owner_b_id = #{userId})
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        <if test="statusList != null and statusList.size() > 0">
+            AND status IN
+            <foreach item="st" collection="statusList" open="(" separator="," close=")">#{st}</foreach>
+        </if>
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countMyOrders" resultType="long">
+        SELECT COUNT(*)
+        FROM twelve_exchange_order
+        WHERE (owner_a_id = #{userId} OR owner_b_id = #{userId})
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        <if test="statusList != null and statusList.size() > 0">
+            AND status IN
+            <foreach item="st" collection="statusList" open="(" separator="," close=")">#{st}</foreach>
+        </if>
+    </select>
+
+    <!-- A 侧标记交付（条件 UPDATE：a_delivered_time 为空才允许写，天然幂等防双击） -->
+    <update id="deliverAsA">
+        UPDATE twelve_exchange_order
+        SET a_delivered_time = NOW(), a_track_no = #{trackNo}, update_time = NOW()
+        WHERE id = #{orderId} AND owner_a_id = #{userId} AND a_delivered_time IS NULL
+          AND status IN ('created', 'delivering')
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- B 侧标记交付（条件 UPDATE：b_delivered_time 为空才允许写） -->
+    <update id="deliverAsB">
+        UPDATE twelve_exchange_order
+        SET b_delivered_time = NOW(), b_track_no = #{trackNo}, update_time = NOW()
+        WHERE id = #{orderId} AND owner_b_id = #{userId} AND b_delivered_time IS NULL
+          AND status IN ('created', 'delivering')
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 交付后推进状态：双方均交付 → pending_confirm，否则 → delivering -->
+    <update id="advanceDeliveryStatus">
+        UPDATE twelve_exchange_order
+        SET status = CASE
+                WHEN a_delivered_time IS NOT NULL AND b_delivered_time IS NOT NULL THEN 'pending_confirm'
+                ELSE 'delivering'
+            END,
+            update_time = NOW()
+        WHERE id = #{orderId} AND status IN ('created', 'delivering')
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- A 侧确认收货（条件 UPDATE：a_confirmed_time 为空才允许写） -->
+    <update id="confirmAsA">
+        UPDATE twelve_exchange_order
+        SET a_confirmed_time = NOW(), update_time = NOW()
+        WHERE id = #{orderId} AND owner_a_id = #{userId} AND a_confirmed_time IS NULL
+          AND status = 'pending_confirm'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- B 侧确认收货（条件 UPDATE：b_confirmed_time 为空才允许写） -->
+    <update id="confirmAsB">
+        UPDATE twelve_exchange_order
+        SET b_confirmed_time = NOW(), update_time = NOW()
+        WHERE id = #{orderId} AND owner_b_id = #{userId} AND b_confirmed_time IS NULL
+          AND status = 'pending_confirm'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 双方均确认 → completed（complete_time 回填） -->
+    <update id="advanceConfirmStatus">
+        UPDATE twelve_exchange_order
+        SET status = 'completed', complete_time = NOW(), update_time = NOW()
+        WHERE id = #{orderId} AND status = 'pending_confirm'
+          AND a_confirmed_time IS NOT NULL AND b_confirmed_time IS NOT NULL
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 用户取消（仅双方均未交付；任一方可发起） -->
+    <update id="cancelByUser">
+        UPDATE twelve_exchange_order
+        SET status = 'cancelled', cancel_reason = #{reason}, update_time = NOW()
+        WHERE id = #{orderId} AND (owner_a_id = #{userId} OR owner_b_id = #{userId})
+          AND status IN ('created', 'delivering')
+          AND a_delivered_time IS NULL AND b_delivered_time IS NULL
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 超时取消（建单超 7 天未双交付） -->
+    <update id="timeoutCancel">
+        UPDATE twelve_exchange_order
+        SET status = 'cancelled', cancel_reason = #{reason}, update_time = NOW()
+        WHERE id = #{orderId} AND status IN ('created', 'delivering')
+          AND a_delivered_time IS NULL AND b_delivered_time IS NULL
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 发起纠纷（delivering/pending_confirm 可发起，物品保持 locked） -->
+    <update id="dispute">
+        UPDATE twelve_exchange_order
+        SET status = 'disputed', dispute_reason = #{reason}, update_time = NOW()
+        WHERE id = #{orderId} AND (owner_a_id = #{userId} OR owner_b_id = #{userId})
+          AND status IN ('delivering', 'pending_confirm')
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 后台裁决：按现状完成（disputed → completed，确认时间未填的回填 NOW()） -->
+    <update id="forceComplete">
+        UPDATE twelve_exchange_order
+        SET status = 'completed', complete_time = NOW(),
+            a_confirmed_time = IFNULL(a_confirmed_time, NOW()),
+            b_confirmed_time = IFNULL(b_confirmed_time, NOW()),
+            dispute_result = #{result},
+            update_time = NOW()
+        WHERE id = #{orderId} AND status = 'disputed'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 后台裁决：取消并解锁（disputed → cancelled） -->
+    <update id="forceCancel">
+        UPDATE twelve_exchange_order
+        SET status = 'cancelled', dispute_result = #{result}, update_time = NOW()
+        WHERE id = #{orderId} AND status = 'disputed'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 双交付后超 3 天未双确认 → 自动 completed（默认收货，确认时间回填 NOW()） -->
+    <update id="autoComplete">
+        UPDATE twelve_exchange_order
+        SET status = 'completed', complete_time = NOW(),
+            a_confirmed_time = IFNULL(a_confirmed_time, NOW()),
+            b_confirmed_time = IFNULL(b_confirmed_time, NOW()),
+            update_time = NOW()
+        WHERE id = #{orderId} AND status = 'pending_confirm'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 平台管理：分页查询（disputed 置顶，status 精确 + keyword 模糊 order_no） -->
+    <sql id="adminPageWhere">
+        <where>
+            <if test="tenantId != null">o.tenant_id = #{tenantId}</if>
+            <if test="status != null and status != ''">AND o.status = #{status}</if>
+            <if test="keyword != null and keyword != ''">
+                AND o.order_no LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+        </where>
+    </sql>
+
+    <select id="selectAdminPage" resultMap="OrderResult">
+        SELECT o.*,
+               ia.title AS item_a_title, ib.title AS item_b_title,
+               ua.nick_name AS owner_a_name, ub.nick_name AS owner_b_name
+        FROM twelve_exchange_order o
+        LEFT JOIN twelve_exchange_item ia ON ia.id = o.item_a_id
+        LEFT JOIN twelve_exchange_item ib ON ib.id = o.item_b_id
+        LEFT JOIN sys_user ua ON ua.user_id = o.owner_a_id
+        LEFT JOIN sys_user ub ON ub.user_id = o.owner_b_id
+        <include refid="adminPageWhere"/>
+        ORDER BY CASE WHEN o.status = 'disputed' THEN 0 ELSE 1 END, o.id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countAdminPage" resultType="long">
+        SELECT COUNT(*)
+        FROM twelve_exchange_order o
+        <include refid="adminPageWhere"/>
+    </select>
+
+    <!-- 扫超时未双交付订单（created 超 7 天） -->
+    <select id="selectTimeoutCreated" resultMap="OrderResult">
+        SELECT <include refid="orderCols"/>
+        FROM twelve_exchange_order
+        WHERE status IN ('created', 'delivering')
+          AND a_delivered_time IS NULL AND b_delivered_time IS NULL
+          AND create_time &lt;= #{threshold}
+        <!-- 定时任务全局扫描（跨租户），租户隔离由下游逐行以订单自身 tenant_id 处理；
+             勿加 tenantId 条件：接口无该参数，MyBatis 绑定时会抛 Parameter not found -->
+        <if test="limit != null and limit > 0">LIMIT #{limit}</if>
+    </select>
+
+    <!-- 扫超时未双确认订单（pending_confirm 超 3 天，入态时间取双方交付的较大值） -->
+    <select id="selectTimeoutPendingConfirm" resultMap="OrderResult">
+        SELECT <include refid="orderCols"/>
+        FROM twelve_exchange_order
+        WHERE status = 'pending_confirm'
+          AND GREATEST(a_delivered_time, b_delivered_time) &lt;= #{threshold}
+        <!-- 定时任务全局扫描（跨租户），租户隔离由下游逐行以订单自身 tenant_id 处理 -->
+        <if test="limit != null and limit > 0">LIMIT #{limit}</if>
+    </select>
+
+    <select id="selectStatistics" resultType="map">
+        SELECT
+            COUNT(*) AS totalOrders,
+            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completedOrders,
+            SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelledOrders,
+            SUM(CASE WHEN status = 'disputed' THEN 1 ELSE 0 END) AS disputedOrders,
+            SUM(CASE WHEN status IN ('created', 'delivering', 'pending_confirm') THEN 1 ELSE 0 END) AS activeOrders
+        FROM twelve_exchange_order
+        <where>
+            <if test="tenantId != null">tenant_id = #{tenantId}</if>
+        </where>
+    </select>
+
+</mapper>

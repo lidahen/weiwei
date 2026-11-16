@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.product.server.mapper.FeedLikeMapper">
+
+    <insert id="insertLike">
+        INSERT IGNORE INTO feed_like (feed_id, user_id, create_time
+        <if test="tenantId != null">, tenant_id</if>)
+        VALUES (#{feedId}, #{userId}, NOW()
+        <if test="tenantId != null">, #{tenantId}</if>)
+    </insert>
+
+    <delete id="deleteLike">
+        DELETE FROM feed_like WHERE feed_id = #{feedId} AND user_id = #{userId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </delete>
+
+    <select id="countLike" resultType="long">
+        SELECT COUNT(1) FROM feed_like WHERE feed_id = #{feedId} AND user_id = #{userId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </select>
+
+</mapper>

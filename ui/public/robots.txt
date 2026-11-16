@@ -1,0 +1,17 @@
+User-agent: *
+Allow: /
+Disallow: /login
+Disallow: /account
+Disallow: /system
+Disallow: /admin
+Disallow: /trade
+Disallow: /user/orders
+Disallow: /user/settings
+Disallow: /user/address
+Disallow: /user/profile/me
+Disallow: /product/publish
+Disallow: /product/my
+Disallow: /feed/publish
+Disallow: /exchange/publish
+Disallow: /exchange/my-
+Disallow: /runner

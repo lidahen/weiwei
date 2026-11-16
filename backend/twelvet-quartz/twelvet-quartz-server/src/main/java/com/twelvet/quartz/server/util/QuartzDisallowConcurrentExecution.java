@@ -1,0 +1,19 @@
+package com.twelvet.quartz.server.util;
+
+import com.twelvet.quartz.api.domain.SysJob;
+import org.quartz.DisallowConcurrentExecution;
+import org.quartz.JobExecutionContext;
+
+/**
+ * @author twelvet
+ * @Description: 定时任务处理（禁止并发执行）
+ */
+@DisallowConcurrentExecution
+public class QuartzDisallowConcurrentExecution extends AbstractQuartzJob {
+
+	@Override
+	protected void doExecute(JobExecutionContext context, SysJob sysJob) throws Exception {
+		JobInvokeUtil.invokeMethod(sysJob);
+	}
+
+}

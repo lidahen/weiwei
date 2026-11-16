@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.exchange.server.mapper.ExchangePickupCodeMapper">
+
+    <resultMap id="PickupCodeResult" type="com.twelvet.exchange.server.domain.ExchangePickupCode">
+        <id property="id" column="id"/>
+        <result property="orderId" column="order_id"/>
+        <result property="side" column="side"/>
+        <result property="code" column="code"/>
+        <result property="expireAt" column="expire_at"/>
+        <result property="used" column="used"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <!-- 多参数方法：keyProperty 必须带参数名，否则 MyBatis 无法回填自增主键 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="code.id">
+        INSERT INTO twelve_exchange_pickup_code
+            (order_id, side, code, expire_at, used, create_time, tenant_id)
+        VALUES
+            (#{code.orderId}, #{code.side}, #{code.code}, #{code.expireAt}, 0, NOW(), #{tenantId})
+    </insert>
+
+    <select id="selectByOrderId" resultMap="PickupCodeResult">
+        SELECT id, order_id, side, code, expire_at, used, create_time
+        FROM twelve_exchange_pickup_code
+        WHERE order_id = #{orderId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        ORDER BY side ASC
+    </select>
+
+</mapper>

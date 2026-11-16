@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.trade.server.mapper.AdminMarketplaceMapper">
+
+    <!--
+      运营后台 SQL 约定：
+      1) 全部统计/列表/更新语句都带租户过滤，形如 <if test="tenantId != null">AND xxx.tenant_id = #{tenantId}</if>；
+         tenantId 为 null（无线程上下文，如平台超管/定时任务）时不生效，保持零侵入回滚。
+      2) 没有 tenant_id 列的表（report / trade_dispute / trade_refund / trade_pay_flow）
+         一律 JOIN 到带租户列的表上取租户，避免跨租户读写：
+         report → sys_user(reporter_id)、trade_dispute → trade_order(order_id)、
+         trade_refund → trade_order(order_id)、trade_pay_flow → trade_order(order_id)。
+         trade_withdraw 自 Phase 1 起是新结构、自带 tenant_id，直接按自身列过滤
+         （旧表已改名 trade_withdraw_legacy_baseline，不再有 user_id）。
+    -->
+
+    <select id="selectDashboardStats" resultType="map">
+        SELECT
+            <!--
+              原先写死 user_type = '02'，但全库只有 '00'（DDL 注释亦仅定义 00 系统用户），
+              该条件匹配 0 行导致"总用户数"恒为 0。改为统计该租户下全部账号。
+            -->
+            (SELECT COUNT(*) FROM sys_user WHERE 1 = 1
+                <if test="tenantId != null">AND tenant_id = #{tenantId}</if>) AS totalUsers,
+            (SELECT COUNT(*) FROM product
+                <if test="tenantId != null">WHERE tenant_id = #{tenantId}</if>) AS totalProducts,
+            (SELECT COUNT(*) FROM product WHERE status = 'onsale'
+                <if test="tenantId != null">AND tenant_id = #{tenantId}</if>) AS onsaleProducts,
+            (SELECT COUNT(*) FROM trade_order
+                <if test="tenantId != null">WHERE tenant_id = #{tenantId}</if>) AS totalOrders,
+            (SELECT COALESCE(SUM(total_amount), 0) FROM trade_order
+                WHERE status IN ('unshipped','shipped','done')
+                <if test="tenantId != null">AND tenant_id = #{tenantId}</if>) AS gmv,
+            (SELECT COUNT(*) FROM product WHERE status = 'auditing'
+                <if test="tenantId != null">AND tenant_id = #{tenantId}</if>) AS pendingAudits,
+            (SELECT COUNT(*) FROM report r
+                JOIN sys_user u ON u.user_id = r.reporter_id
+                WHERE r.status = 'pending'
+                <if test="tenantId != null">AND u.tenant_id = #{tenantId}</if>) AS pendingReports,
+            (SELECT COUNT(*) FROM trade_dispute d
+                JOIN trade_order o ON o.order_id = d.order_id
+                WHERE d.status = 'pending'
+                <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>) AS pendingDisputes
+    </select>
+
+    <select id="selectCategoryDistribution" resultType="map">
+        SELECT c.name, COUNT(p.product_id) AS value
+        FROM product_category_dict c
+        LEFT JOIN product p ON p.cat_l1 = c.code
+            <if test="tenantId != null">AND p.tenant_id = #{tenantId}</if>
+        WHERE c.level = 1
+        GROUP BY c.code, c.name
+    </select>
+
+    <!--
+      自营运营核心指标（阶段一验证口径，窗口内统计）：
+        发布量     = 窗口内首次上架商品数（product.publish_time，草稿/待审为 NULL 不计）
+        成交量/GMV = 窗口内已付款订单（status IN unshipped/shipped/done，排除未付款与已关闭）
+        履约率     = 已完成(done) / 成交量
+        复购率     = 窗口内成交 ≥2 笔的买家 / 窗口内成交买家数
+        纠纷率     = 窗口内新建纠纷工单 / 成交量
+        超时未发货 = 已付款超 72h 仍未发货（履约风险提示，非率值）
+      rates 由 Service 层计算，SQL 只出原始计数，避免除零/空值在 SQL 里难处理。
+    -->
+    <select id="selectOperationMetrics" resultType="map">
+        SELECT
+            (SELECT COUNT(*) FROM product
+                WHERE publish_time &gt;= DATE_SUB(CURDATE(), INTERVAL #{days} DAY)
+                <if test="tenantId != null">AND tenant_id = #{tenantId}</if>) AS publishCount,
+            (SELECT COUNT(*) FROM product
+                WHERE publish_time &gt;= CURDATE()
+                <if test="tenantId != null">AND tenant_id = #{tenantId}</if>) AS publishToday,
+            (SELECT COUNT(*) FROM trade_order
+                WHERE status IN ('unshipped','shipped','done')
+                  AND create_time &gt;= DATE_SUB(CURDATE(), INTERVAL #{days} DAY)
+                <if test="tenantId != null">AND tenant_id = #{tenantId}</if>) AS dealCount,
+            (SELECT COALESCE(SUM(total_amount), 0) FROM trade_order
+                WHERE status IN ('unshipped','shipped','done')
+                  AND create_time &gt;= DATE_SUB(CURDATE(), INTERVAL #{days} DAY)
+                <if test="tenantId != null">AND tenant_id = #{tenantId}</if>) AS dealGmv,
+            (SELECT COUNT(*) FROM trade_order
+                WHERE status = 'done'
+                  AND create_time &gt;= DATE_SUB(CURDATE(), INTERVAL #{days} DAY)
+                <if test="tenantId != null">AND tenant_id = #{tenantId}</if>) AS doneCount,
+            (SELECT COUNT(DISTINCT buyer_id) FROM trade_order
+                WHERE status IN ('unshipped','shipped','done')
+                  AND create_time &gt;= DATE_SUB(CURDATE(), INTERVAL #{days} DAY)
+                <if test="tenantId != null">AND tenant_id = #{tenantId}</if>) AS buyerCount,
+            (SELECT COUNT(*) FROM (
+                SELECT buyer_id FROM trade_order
+                 WHERE status IN ('unshipped','shipped','done')
+                   AND create_time &gt;= DATE_SUB(CURDATE(), INTERVAL #{days} DAY)
+                   <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+                 GROUP BY buyer_id HAVING COUNT(*) &gt;= 2
+             ) t) AS repeatBuyerCount,
+            (SELECT COUNT(*) FROM trade_dispute d
+                JOIN trade_order o ON o.order_id = d.order_id
+                WHERE d.create_time &gt;= DATE_SUB(CURDATE(), INTERVAL #{days} DAY)
+                <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>) AS disputeCount,
+            (SELECT COUNT(*) FROM trade_order
+                WHERE status = 'unshipped'
+                  AND create_time &lt; DATE_SUB(NOW(), INTERVAL 72 HOUR)
+                <if test="tenantId != null">AND tenant_id = #{tenantId}</if>) AS overdueUnshippedCount,
+            (SELECT COUNT(*) FROM trade_order WHERE status = 'unpaid'
+                <if test="tenantId != null">AND tenant_id = #{tenantId}</if>) AS unpaidCount
+    </select>
+
+    <!-- 按日订单/成交趋势（缺口日期由 Service 层补零） -->
+    <select id="selectDailyOrderTrend" resultType="map">
+        SELECT DATE_FORMAT(create_time, '%Y-%m-%d') AS statDate,
+               COUNT(*) AS orderCount,
+               COALESCE(SUM(total_amount), 0) AS gmv
+        FROM trade_order
+        WHERE status IN ('unshipped','shipped','done')
+          AND create_time &gt;= DATE_SUB(CURDATE(), INTERVAL #{days} DAY)
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        GROUP BY DATE_FORMAT(create_time, '%Y-%m-%d')
+        ORDER BY statDate
+    </select>
+
+    <!-- 按日发布量趋势（缺口日期由 Service 层补零） -->
+    <select id="selectDailyPublishTrend" resultType="map">
+        SELECT DATE_FORMAT(publish_time, '%Y-%m-%d') AS statDate, COUNT(*) AS publishCount
+        FROM product
+        WHERE publish_time &gt;= DATE_SUB(CURDATE(), INTERVAL #{days} DAY)
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        GROUP BY DATE_FORMAT(publish_time, '%Y-%m-%d')
+        ORDER BY statDate
+    </select>
+
+    <insert id="insertAuditPassLog">
+        INSERT INTO product_audit_log (product_id, auditor_id, action, reason_code, create_time)
+        VALUES (#{productId}, #{auditorId}, 'pass', 'manual', NOW())
+    </insert>
+
+    <insert id="insertAuditRejectLog">
+        INSERT INTO product_audit_log (product_id, auditor_id, action, custom_reason, create_time)
+        VALUES (#{productId}, #{auditorId}, 'reject', #{reason}, NOW())
+    </insert>
+
+    <select id="selectProductAuditList" resultType="map">
+        SELECT p.product_id AS productId, p.title, p.cover, p.price, p.status, p.cat_l1 AS catL1,
+               p.publish_time AS publishTime, u.nick_name AS sellerNickName, u.user_id AS sellerId,
+               m.risk_level AS aiRiskLevel, m.action AS aiAction, m.summary AS aiSummary, m.violations AS aiViolations
+        FROM product p
+        LEFT JOIN sys_user u ON p.seller_id = u.user_id
+        LEFT JOIN ai_moderation_log m ON m.log_id = (
+            SELECT ml.log_id FROM ai_moderation_log ml
+            WHERE ml.biz_type = 'product' AND ml.biz_id = p.product_id AND ml.action != 'error'
+            ORDER BY ml.log_id DESC LIMIT 1
+        )
+        <where>
+            <if test="tenantId != null">AND p.tenant_id = #{tenantId}</if>
+            <choose>
+                <when test="status != null and status != ''">
+                    AND p.status = #{status}
+                </when>
+                <otherwise>
+                    AND p.status IN ('auditing', 'onsale', 'rejected')
+                </otherwise>
+            </choose>
+            <if test='"flagged".equals(aiRisk)'>
+                AND m.risk_level IN ('medium', 'high')
+            </if>
+            <if test='"auto".equals(aiRisk)'>
+                AND m.action IN ('auto_pass', 'auto_reject')
+            </if>
+        </where>
+        ORDER BY p.create_time DESC
+    </select>
+
+    <update id="approveProduct">
+        UPDATE product SET status = 'onsale', publish_time = sysdate()
+        WHERE product_id = #{productId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <update id="rejectProduct">
+        UPDATE product SET status = 'rejected', audit_reject_reason = #{reason}
+        WHERE product_id = #{productId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 举报 SQL 已迁到 product 的 ReportMapper.xml（report 表单一读写点） -->
+
+    <select id="selectUserList" resultType="map">
+        SELECT user_id AS userId, username, nick_name AS nickName, avatar, user_type AS userType, phonenumber, status, create_time AS createTime
+        FROM sys_user
+        <where>
+            <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+            <if test="keyword != null and keyword != ''">
+                AND (nick_name LIKE CONCAT('%', #{keyword}, '%')
+                     OR username LIKE CONCAT('%', #{keyword}, '%')
+                     OR phonenumber LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY user_id DESC
+    </select>
+
+    <!--
+      与 product 侧 UserMapper.updateStatus 保持同一口径：软删账号不可改状态，且必须更新 update_time。
+      两份 SQL 都写 sys_user.status，守卫不一致会让审计轨迹随操作入口分叉。
+    -->
+    <update id="updateUserStatus">
+        UPDATE sys_user SET status = #{status}, update_time = NOW()
+        WHERE user_id = #{userId} AND del_flag = '0'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <select id="selectFinanceStats" resultType="map">
+        SELECT
+            (SELECT COALESCE(SUM(total_amount), 0) FROM trade_order
+                <if test="tenantId != null">WHERE tenant_id = #{tenantId}</if>) AS totalGmv,
+            (SELECT COALESCE(SUM(total_amount), 0) FROM trade_order
+                WHERE status IN ('unshipped','shipped','done')
+                <if test="tenantId != null">AND tenant_id = #{tenantId}</if>) AS paidGmv,
+            (SELECT COALESCE(SUM(rf.amount), 0) FROM trade_refund rf
+                JOIN trade_order o ON o.order_id = rf.order_id
+                WHERE rf.status = 'refund_success'
+                <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>) AS refundedGmv,
+            (SELECT COUNT(*) FROM trade_withdraw w
+                WHERE w.status = 'pending'
+                <if test="tenantId != null">AND w.tenant_id = #{tenantId}</if>) AS pendingWithdraws
+    </select>
+
+    <select id="selectRecentPayFlows" resultType="map">
+        SELECT f.flow_id, f.order_id, f.type, f.amount, f.channel, f.third_trans_no, f.create_time
+        FROM trade_pay_flow f
+        <if test="tenantId != null">
+            JOIN trade_order o ON o.order_id = f.order_id AND o.tenant_id = #{tenantId}
+        </if>
+        ORDER BY f.create_time DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

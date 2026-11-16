@@ -1,0 +1,38 @@
+Weiwei（邻里二手）
+Copyright 2026 lixin
+
+This product is licensed under the Apache License, Version 2.0.
+See the LICENSE file for the full text.
+
+--------------------------------------------------------------------------------
+Third-party components
+--------------------------------------------------------------------------------
+
+TwelveT Fast
+  https://gitee.com/twelvet-projects/twelvet
+  本项目后台基于 TwelveT Fast 进行二次开发。上游版权归其原作者所有，
+  其许可证随本仓库一并适用；如与上游许可证存在冲突，以上游为准。
+
+Spring Boot / Spring Framework
+  https://spring.io/projects/spring-boot
+  Copyright (c) Broadcom Inc. and contributors — Apache License 2.0
+
+Umi Max / Ant Design / React
+  https://umijs.org/ · https://ant.design/ · https://react.dev/
+  MIT License
+
+FastAPI / LangGraph / LangChain / FAISS
+  https://fastapi.tiangolo.com/ · https://langchain-ai.github.io/langgraph/
+  https://github.com/facebookresearch/faiss
+  MIT License / Apache License 2.0（详见各项目仓库）
+
+BAAI bge-m3
+  https://huggingface.co/BAAI/bge-m3
+  MIT License
+
+--------------------------------------------------------------------------------
+Note
+--------------------------------------------------------------------------------
+
+仓库内的演示数据（docs/db/*.sql）均为虚构测试数据，不含真实用户信息；
+其中的 API Key 字段已替换为占位符，不可用于调用任何真实服务。

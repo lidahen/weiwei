@@ -1,0 +1,110 @@
+# 本地开发默认值：本机原生 MySQL/Redis（3306 / 6379），无需 Docker，
+# 因此按 README「本地启动」起好依赖后，mvn spring-boot:run 无需任何额外配置即可运行。
+#
+# 所有连接参数均可用环境变量覆盖（与下方 payment 块同一套写法），例如连远程库时：
+#   DB_HOST / DB_PORT / DB_USERNAME / DB_PASSWORD / REDIS_HOST / REDIS_PORT / REDIS_PASSWORD
+#
+# 历史注意（勿回退）：本文件曾把本地开发指向一台远程生产库（经 SSH 隧道转发到 13306/16379）
+# 并内嵌其口令。后果是：按 README 做的人连不上（隧道未开），而隧道开着时本地开发会
+# 直接读写生产库。开发配置不应指向生产。
+spring:
+  datasource:
+    type: com.zaxxer.hikari.HikariDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/twelvet-fast?allowPublicKeyRetrieval=true&useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=GMT%2B8
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
+    dynamic:
+      # 设置默认的数据源或者数据源组,默认值即为master
+      #primary: master
+      datasource:
+        # 从库数据源
+        slave:
+          driver-class-name: com.mysql.cj.jdbc.Driver
+          url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/twelvet-fast?allowPublicKeyRetrieval=true&useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=GMT%2B8
+          username: ${DB_USERNAME:root}
+          password: ${DB_PASSWORD:123456}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      # 本地 Redis 口令（D:\Program Files (x86)\redis-windows-master7 的 redis.conf: requirepass 123456）
+      # ⚠️ 必须与 Redis 实际口令一致：Redisson 会把空串当成真实密码发 `AUTH ""`，
+      #    对无密码的 Redis 报 `ERR AUTH ... called without any password configured`，后端启动即失败。
+      #    本机 Redis 已设 123456，故这里默认值也写 123456。
+      password: ${REDIS_PASSWORD:123456}
+      database: 1
+      # 连接超时时间
+      timeout: 30s
+      lettuce:
+        pool:
+          # 连接池中的最小空闲连接
+          min-idle: 0
+          # 连接池中的最大空闲连接
+          max-idle: 8
+          # 连接池的最大数据库连接数
+          max-active: 8
+          # #连接池最大阻塞等待时间（使用负值表示没有限制）
+          max-wait: -1ms
+
+# 日志配置
+logging:
+  level:
+    org.springframework: warn
+
+# Mybatis配置
+mybatis:
+  # Mybatis开启日志打印
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# 支付配置
+payment:
+  alipay:
+    app-id: ${PAY_ALIPAY_APP_ID:2021005107654321}
+    private-key: ${PAY_ALIPAY_PRIVATE_KEY:MIIEvQIBADANBgkqh...}
+    alipay-public-key: ${PAY_ALIPAY_PUBLIC_KEY:MIIBIjANBgkqh...}
+    gateway-url: https://openapi-sandbox.dl.alipaydev.com/gateway.do
+    charset: UTF-8
+    sign-type: RSA2
+    notify-url: https://your-domain.com/payment/callback/alipay
+  wechat:
+    app-id: ${PAY_WECHAT_APP_ID:wx1234567890abcdef}
+    mch-id: ${PAY_WECHAT_MCH_ID:1234567890}
+    api-key: ${PAY_WECHAT_API_KEY:5K8264ILTKCH16CQ2502SI8ZNMTM67VS}
+    api-private-key: ${PAY_WECHAT_PRIVATE_KEY:}
+    api-cert-serial-no: ${PAY_WECHAT_CERT_SERIAL_NO:}
+    notify-url: https://your-domain.com/payment/callback/wechat
+  return-url: ${PAY_RETURN_URL:/trade/payment/result}
+
+# P2 扫码续费：dev 沙箱密钥为占位符，开启模拟支付闭环（下单出 mock 二维码 + /mock-pay 完成履约）
+# 生产环境必须 false，走真实网关 + /payment/callback 回调
+# 子域名租户解析基准域名（thu.localhost -> tenant_code=thu；*.localhost 浏览器/系统解析到本机，零 hosts 配置）
+# 生产配真实域名（如 ershou.com）；置空关闭子域名解析
+tenant:
+  base-domain: localhost
+
+billing:
+  pay:
+    mock: true
+
+# 结算（Phase 1 mock）：证件号/银行卡号加密密钥，仅本地开发；生产必须用环境变量覆盖
+trade:
+  settlement:
+    crypto-key: "ZGV2LW9ubHktc2V0dGxlbWVudC1rZXktMzJieXRlcyE="
+
+# AI 服务地址
+ai:
+  service:
+    url: http://localhost:8001
+
+# 安全放行路径 -- 支付回调 + 公开数据
+security:
+  ignore:
+    urls:
+      - /payment/callback/alipay
+      - /payment/callback/wechat
+      - /ai/chat
+      # 公开数据：任何人(含未登录)可查看的商品评价/卖家评价
+      - /trade/review/product/**
+      - /trade/review/user/**

@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.product.server.mapper.ReportMapper">
+
+    <!--
+      report 表无 tenant_id 列（docs/全局健壮性与架构审查报告.md P0-5），
+      租户口径一律 JOIN sys_user(reporter_id) 取，与 AdminMarketplaceMapper 头注释约定一致。
+    -->
+    <resultMap id="ReportResult" type="com.twelvet.product.server.domain.Report">
+        <id property="reportId" column="report_id"/>
+        <result property="reporterId" column="reporter_id"/>
+        <result property="targetType" column="target_type"/>
+        <result property="targetId" column="target_id"/>
+        <result property="reason" column="reason"/>
+        <result property="evidenceImages" column="evidence_images"/>
+        <result property="status" column="status"/>
+        <result property="action" column="action"/>
+        <result property="handleNote" column="handle_note"/>
+        <result property="handlerId" column="handler_id"/>
+        <result property="createTime" column="create_time"/>
+        <result property="handleTime" column="handle_time"/>
+    </resultMap>
+
+    <sql id="reportCols">
+        r.report_id, r.reporter_id, r.target_type, r.target_id, r.reason,
+        r.evidence_images, r.status, r.action, r.handle_note, r.handler_id,
+        r.create_time, r.handle_time
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="reportId">
+        INSERT INTO report (reporter_id, target_type, target_id, reason, evidence_images,
+                            status, create_time)
+        VALUES (#{reporterId}, #{targetType}, #{targetId}, #{reason}, #{evidenceImages},
+                'pending', NOW())
+    </insert>
+
+    <select id="selectByReporterAndTarget" resultMap="ReportResult">
+        SELECT <include refid="reportCols"/>
+        FROM report r
+        WHERE r.reporter_id = #{reporterId}
+          AND r.target_type = #{targetType}
+          AND r.target_id = #{targetId}
+    </select>
+
+    <!--
+      复活已处理的举报行（避免唯一键冲突）。必须带 status='done' 守卫：
+      无条件写回 pending 会把运营刚处置完的举报重置，处置记录（action/handler/handle_time）
+      随之清空，而「已驳回」的通知早已发出，双方结论互相矛盾。
+    -->
+    <update id="revive">
+        UPDATE report
+        SET reason = #{reason},
+            evidence_images = #{evidenceImages},
+            status = 'pending',
+            action = NULL,
+            handle_note = NULL,
+            handler_id = NULL,
+            handle_time = NULL
+        WHERE report_id = #{reportId} AND status = 'done'
+    </update>
+
+    <!--
+      租户过滤用 EXISTS 而不是 JOIN：reportCols 全是 r.*，JOIN 出来的列一列都没用到，
+      无条件 JOIN 会让每页多做 200 次 sys_user 探测、且无法走覆盖索引；
+      而且 INNER JOIN 会把「举报人已被硬删」的举报整条从队列里永久丢掉。
+      EXISTS 只在需要租户过滤时才执行（tenantId 为 null 时整段不出现）。
+    -->
+    <select id="selectList" resultMap="ReportResult">
+        SELECT <include refid="reportCols"/>
+        FROM report r
+        <where>
+            <if test="status != null and status != ''">r.status = #{status}</if>
+            <if test="tenantId != null">
+                AND EXISTS (SELECT 1 FROM sys_user u
+                            WHERE u.user_id = r.reporter_id AND u.tenant_id = #{tenantId})
+            </if>
+        </where>
+        ORDER BY r.create_time DESC
+    </select>
+
+    <select id="selectById" resultMap="ReportResult">
+        SELECT <include refid="reportCols"/>
+        FROM report r
+        WHERE r.report_id = #{reportId}
+        <if test="tenantId != null">
+            AND EXISTS (SELECT 1 FROM sys_user u
+                        WHERE u.user_id = r.reporter_id AND u.tenant_id = #{tenantId})
+        </if>
+    </select>
+
+    <update id="markHandled">
+        UPDATE report
+        SET status = 'done',
+            action = #{action},
+            handle_note = #{note},
+            handler_id = #{handlerId},
+            handle_time = NOW()
+        WHERE report_id = #{reportId} AND status = 'pending'
+    </update>
+
+    <!-- 处置未生效时追加说明（对象已被删/状态已变），不影响 status 与 action -->
+    <update id="updateHandleNote">
+        UPDATE report SET handle_note = #{note} WHERE report_id = #{reportId}
+    </update>
+
+</mapper>

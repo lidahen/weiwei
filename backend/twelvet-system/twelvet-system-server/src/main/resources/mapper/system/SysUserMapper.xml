@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.system.server.mapper.SysUserMapper">
+
+    <resultMap type="SysUser" id="SysUserResult">
+        <id property="userId" column="user_id"/>
+        <result property="deptId" column="dept_id"/>
+        <result property="loginName" column="login_name"/>
+        <result property="username" column="username"/>
+        <result property="nickName" column="nick_name"/>
+        <result property="email" column="email"/>
+        <result property="phonenumber" column="phonenumber"/>
+        <result property="sex" column="sex"/>
+        <result property="avatar" column="avatar"/>
+        <result property="password" column="password"/>
+        <result property="salt" column="salt"/>
+        <result property="status" column="status"/>
+        <result property="delFlag" column="del_flag"/>
+        <result property="userType" column="user_type"/>
+        <result property="loginIp" column="login_ip"/>
+        <result property="loginDate" column="login_date"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateBy" column="update_by"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="remark" column="remark"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="globalUserId" column="global_user_id"/>
+        <association property="dept"    column="dept_id" javaType="SysDept" resultMap="deptResult" />
+        <collection  property="roles"   javaType="java.util.List"        resultMap="RoleResult" />
+    </resultMap>
+
+    <resultMap id="deptResult" type="SysDept">
+        <id property="deptId" column="dept_id"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="deptName" column="dept_name"/>
+        <result property="orderNum" column="order_num"/>
+        <result property="leader" column="leader"/>
+        <result property="status" column="dept_status"/>
+    </resultMap>
+
+    <resultMap id="RoleResult" type="SysRole">
+        <id property="roleId" column="role_id"/>
+        <result property="roleName" column="role_name"/>
+        <result property="roleKey" column="role_key"/>
+        <result property="roleSort" column="role_sort"/>
+        <result property="dataScope" column="data_scope"/>
+        <result property="status" column="role_status"/>
+    </resultMap>
+
+    <sql id="selectUserVo">
+        select u.user_id, u.dept_id, u.username, u.password, u.nick_name, u.email, u.avatar, u.phonenumber, u.sex, u.status, u.del_flag, u.user_type, u.login_ip, u.login_date,u.remark, u.tenant_id, u.global_user_id,
+               d.dept_id, d.parent_id, d.dept_name, d.order_num, d.leader, d.status as dept_status,
+               r.role_id, r.role_name, r.role_key, r.role_sort, r.data_scope, r.status as role_status
+        from sys_user u
+                 left join sys_dept d on u.dept_id = d.dept_id
+                 left join sys_user_role ur on u.user_id = ur.user_id
+                 left join sys_role r on r.role_id = ur.role_id
+    </sql>
+
+    <select id="selectUserList" parameterType="SysUser" resultMap="SysUserResult">
+        select u.user_id, u.dept_id, u.nick_name, u.username, u.email, u.avatar, u.phonenumber, u.password, u.sex,
+        u.status, u.del_flag, u.login_ip, u.login_date, u.create_by, u.create_time, u.remark, u.tenant_id, u.global_user_id, d.dept_name, d.leader from
+        sys_user u
+        left join sys_dept d on u.dept_id = d.dept_id
+        where u.del_flag = '0'
+        <!-- 用户表读隔离：租户上下文存在时按租户过滤；无上下文=平台全局视角（与商品列表兼容模式对称） -->
+        <if test="tenantId != null">
+            AND u.tenant_id = #{tenantId}
+        </if>
+        <!-- checkUserDataScope 按目标用户圈定（租户+部门数据范围联合生效） -->
+        <if test="userId != null">
+            AND u.user_id = #{userId}
+        </if>
+        <if test="username != null and username != ''">
+            AND u.username like concat('%', #{username}, '%')
+        </if>
+        <if test="status != null">
+            AND u.status = #{status}
+        </if>
+        <if test="phonenumber != null and phonenumber != ''">
+            AND u.phonenumber like concat('%', #{phonenumber}, '%')
+        </if>
+        <if test="beginTime != null and beginTime != ''"><!-- 开始时间检索 -->
+            AND date_format(u.create_time,'%y%m%d') &gt;= date_format(#{beginTime},'%y%m%d')
+        </if>
+        <if test="endTime != null and endTime != ''"><!-- 结束时间检索 -->
+            AND date_format(u.create_time,'%y%m%d') &lt;= date_format(#{endTime},'%y%m%d')
+        </if>
+        <if test="deptId != null and deptId != 0">
+            AND (u.dept_id = #{deptId} OR u.dept_id IN ( SELECT t.dept_id FROM sys_dept t WHERE FIND_IN_SET
+            (#{deptId},ancestors) ))
+        </if>
+        <!-- 数据范围过滤 -->
+        ${params.dataScope}
+    </select>
+
+    <select id="selectUserByUserName" parameterType="String" resultMap="SysUserResult">
+        <include refid="selectUserVo"/>
+        where u.username = #{userName} and u.del_flag = '0'
+    </select>
+
+    <select id="selectUserByUserNameAndTenant" resultMap="SysUserResult">
+        <include refid="selectUserVo"/>
+        where u.username = #{userName} and u.tenant_id = #{tenantId} and u.del_flag = '0'
+    </select>
+
+    <!-- 手机号+租户查用户：子查询先定位唯一 user_id（防同租户重复手机号返回多对象），外层不限行以便 MyBatis 聚合该用户全部角色行 -->
+    <select id="selectUserByPhoneAndTenant" resultMap="SysUserResult">
+        <include refid="selectUserVo"/>
+        where u.user_id = (
+            select su.user_id from sys_user su
+            where su.phonenumber = #{phonenumber} and su.del_flag = '0'
+            <if test="tenantId != null">
+                and su.tenant_id = #{tenantId}
+            </if>
+            order by su.user_id
+            limit 1
+        )
+    </select>
+
+    <select id="selectGlobalIdByPhone" parameterType="String" resultType="Long">
+        select global_user_id from sys_user
+        where phonenumber = #{phonenumber} and global_user_id is not null and del_flag = '0'
+        limit 1
+    </select>
+
+    <select id="selectUserById" parameterType="Long" resultMap="SysUserResult">
+        <include refid="selectUserVo"/>
+        where u.user_id = #{userId}
+    </select>
+
+    <select id="checkUserNameUnique" resultType="int">
+        select count(1) from sys_user where username = #{userName}
+        <if test="tenantId != null">
+            and tenant_id = #{tenantId}
+        </if>
+    </select>
+
+    <!--
+        口径必须与唯一索引 uk_sys_user_tenant_phone（见 backend/data/sms-auth-init.sql）一致：
+        索引表达式为 ((IF(del_flag <=> '0' AND phonenumber <> '', phonenumber, NULL)), tenant_id)，
+        即只有 del_flag='0' 的行占用手机号。这里补 del_flag='0'，否则应用层会把软删行算成占用，
+        出现「数据库允许重新注册、后台却提示手机号已存在」的口径撕裂。
+        limit 1：本查询返回单个 SysUser，同租户存量脏数据若有多行会抛 TooManyResultsException（500）。
+    -->
+    <select id="checkPhoneUnique" resultMap="SysUserResult">
+        select user_id, phonenumber from sys_user
+        where phonenumber = #{phonenumber} and del_flag = '0'
+        <if test="tenantId != null">
+            and tenant_id = #{tenantId}
+        </if>
+        limit 1
+    </select>
+
+    <select id="checkEmailUnique" resultMap="SysUserResult">
+        select user_id, email from sys_user where email = #{email}
+        <if test="tenantId != null">
+            and tenant_id = #{tenantId}
+        </if>
+    </select>
+
+    <insert id="insertUser" parameterType="SysUser" useGeneratedKeys="true" keyProperty="userId">
+        insert into sys_user(
+        <if test="userId != null and userId != 0">user_id,</if>
+        <if test="deptId != null and deptId != 0">dept_id,</if>
+        <if test="username != null and username != ''">username,</if>
+        <if test="nickName != null and nickName != ''">nick_name,</if>
+        <if test="email != null and email != ''">email,</if>
+        <if test="avatar != null and avatar != ''">avatar,</if>
+        <if test="phonenumber != null and phonenumber != ''">phonenumber,</if>
+        <if test="sex != null and sex != ''">sex,</if>
+        <if test="password != null and password != ''">password,</if>
+        <if test="status != null">status,</if>
+        <if test="userType != null and userType != ''">user_type,</if>
+        <if test="createBy != null and createBy != ''">create_by,</if>
+        <if test="remark != null and remark != ''">remark,</if>
+        create_time
+        <if test="tenantId != null">,tenant_id</if>
+        <if test="globalUserId != null">,global_user_id</if>
+        )values(
+        <if test="userId != null and userId != ''">#{userId},</if>
+        <if test="deptId != null and deptId != ''">#{deptId},</if>
+        <if test="username != null and username != ''">#{username},</if>
+        <if test="nickName != null and nickName != ''">#{nickName},</if>
+        <if test="email != null and email != ''">#{email},</if>
+        <if test="avatar != null and avatar != ''">#{avatar},</if>
+        <if test="phonenumber != null and phonenumber != ''">#{phonenumber},</if>
+        <if test="sex != null and sex != ''">#{sex},</if>
+        <if test="password != null and password != ''">#{password},</if>
+        <if test="status != null">#{status},</if>
+        <if test="userType != null and userType != ''">#{userType},</if>
+        <if test="createBy != null and createBy != ''">#{createBy},</if>
+        <if test="remark != null and remark != ''">#{remark},</if>
+        sysdate()
+        <if test="tenantId != null">,#{tenantId}</if>
+        <if test="globalUserId != null">,#{globalUserId}</if>
+        )
+    </insert>
+
+    <update id="backfillGlobalUserId" parameterType="Long">
+        update sys_user set global_user_id = user_id where user_id = #{userId} and global_user_id is null
+    </update>
+
+    <update id="updateUser" parameterType="SysUser">
+        update sys_user
+        <set>
+            <if test="deptId != null and deptId != 0">dept_id = #{deptId},</if>
+            <if test="nickName != null and nickName != ''">nick_name = #{nickName},</if>
+            <if test="email != null and email != ''">email = #{email},</if>
+            <if test="phonenumber != null and phonenumber != ''">phonenumber = #{phonenumber},</if>
+            <if test="sex != null and sex != ''">sex = #{sex},</if>
+            <if test="avatar != null and avatar != ''">avatar = #{avatar},</if>
+            <if test="password != null and password != ''">password = #{password},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="loginIp != null and loginIp != ''">login_ip = #{loginIp},</if>
+            <if test="loginDate != null">login_date = #{loginDate},</if>
+            <if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            update_time = sysdate()
+        </set>
+        where user_id = #{userId}
+    </update>
+
+    <update id="updateUserStatus" parameterType="SysUser">
+        update sys_user set status = #{status} where user_id = #{userId}
+    </update>
+
+    <update id="updateUserAvatar" parameterType="SysUser">
+        update sys_user set avatar = #{avatar} where username = #{userName}
+        <if test="tenantId != null">
+            and tenant_id = #{tenantId}
+        </if>
+    </update>
+
+    <update id="resetUserPwd" parameterType="SysUser">
+        update sys_user set password = #{password} where username = #{userName}
+        <if test="tenantId != null">
+            and tenant_id = #{tenantId}
+        </if>
+    </update>
+
+    <delete id="deleteUserById" parameterType="Long">
+        delete from sys_user where user_id = #{userId}
+    </delete>
+
+    <delete id="deleteUserByIds" parameterType="Long">
+        update sys_user set del_flag = '2' where user_id in
+        <foreach collection="array" item="userId" open="(" separator="," close=")">
+            #{userId}
+        </foreach>
+    </delete>
+
+</mapper>

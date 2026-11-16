@@ -1,0 +1,58 @@
+# ============================================================================
+# 行尾与文件类型策略
+#
+# 背景：本仓库原先没有此文件，而开发机 core.autocrlf=true —— 行尾完全取决于
+# 每台机器的本地配置。后果：同一文件在不同机器上提交出不同内容（LF vs CRLF），
+# 产生"整文件改动"的假 diff、review 噪音，以及"我本地是好的"类问题。
+# 2026-10-13 应用 spring-javaformat 时有 7 个文件的 LF/CRLF 实际发生变化，
+# git 反复提示 "LF will be replaced by CRLF the next time Git touches it"。
+#
+# 策略：文本文件统一以 LF 存储与检出（生产部署在 Linux）；Windows 专用脚本
+# 保留 CRLF；二进制不做任何转换。
+# ============================================================================
+
+# 默认：自动识别文本文件，统一 LF
+* text=auto eol=lf
+
+# ── Windows 专用脚本：保留 CRLF ──
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# ── Shell 脚本：强制 LF（容器/Linux 内执行）──
+*.sh text eol=lf
+
+# ── 二进制：禁止行尾转换与文本 diff ──
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.7z binary
+*.jar binary
+*.war binary
+*.class binary
+*.so binary
+*.dll binary
+*.exe binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.faiss binary
+*.npy binary
+*.npz binary
+*.bin binary
+*.pkl binary
+*.xlsx binary
+*.xls binary
+*.docx binary
+*.pptx binary
+
+# ── 锁文件：正常文本处理，但在 diff 中折叠（减少 review 噪音）──
+package-lock.json -diff
+yarn.lock -diff
+pnpm-lock.yaml -diff

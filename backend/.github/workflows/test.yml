@@ -1,0 +1,59 @@
+name: test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java-version: [ 17, 21 ]
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up JDK ${{ matrix.java-version }}
+        uses: actions/setup-java@v3
+        with:
+          java-version: ${{ matrix.java-version }}
+          distribution: zulu
+          cache: maven
+
+      - name: mvn spring-javaformat:validate
+        run: mvn spring-javaformat:validate
+
+      - name: mvn clean install
+        run: mvn clean install -DskipTests
+
+      - name: init
+        run: cd docker && chmod 751 ./deploy.sh && ./deploy.sh init
+
+      - name: Start Base
+        run: |
+          cd docker 
+          docker network create twelvet-network
+          docker compose up -d twelvet-mysql twelvet-redis
+
+      - name: Start Server
+        run: |
+          cd docker
+          docker compose up -d twelvet-admin
+
+      - name: Check Server twelvet-mysql
+        run: |
+          docker logs --tail 500 twelvet-mysql
+
+      - name: Check Server twelvet-redis
+        run: |
+          docker logs --tail 500 twelvet-redis
+
+      - name: Check Server
+        run: |
+          cd docker
+          sleep 60
+          echo "Start checking the service, here are the service logs"
+          docker logs --tail 500 twelvet-admin

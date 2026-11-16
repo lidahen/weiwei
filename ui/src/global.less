@@ -1,0 +1,352 @@
+html,
+body,
+#root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+    'Noto Color Emoji';
+}
+
+.colorWeak {
+    filter: invert(80%);
+}
+
+.ant-layout {
+    min-height: 100vh;
+}
+
+// --- 粘底页脚 ---
+// ProLayout 的 DOM 是 container > (header + main.ant-pro-layout-content + footer)，
+// 内容不足一屏时 footer 会紧跟内容出现在页面中部。
+// 注意：pro-layout 的 cssinjs 会给 container 设 min-height: 0（同优先级、注入更晚），
+// 所以这里用 #root 前缀提高优先级压过它，再把内容区 flex 撑满，页脚即可固定在视口底部。
+#root .ant-pro-layout-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+#root .ant-pro-layout-container > .ant-pro-layout-content {
+    flex: 1 0 auto;
+}
+
+.ant-pro-sider.ant-layout-sider.ant-pro-sider-fixed {
+    left: unset;
+}
+
+canvas {
+    display: block;
+}
+
+body {
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+ul,
+ol {
+    list-style: none;
+}
+
+@media (max-width: 768px) {
+    .ant-table {
+        width: 100%;
+        overflow-x: auto;
+
+        &-thead > tr,
+        &-tbody > tr {
+            > th,
+            > td {
+                white-space: pre;
+
+                > span {
+                    display: block;
+                }
+            }
+        }
+    }
+}
+
+// --- 登录页 (极简留白) ---
+
+// 整页米白底 + 兜底（AnimatedBackground 已渲染在前面，这里防漏出）
+.login-bg {
+    min-height: 100vh;
+    background: #F5F1E8;
+}
+
+// ProForm 输入框极简覆盖 —— transparent 背景让卡片底色透出，prefix 图标变浅
+.login-bg {
+    .ant-input,
+    .ant-input-password,
+    .ant-input-affix-wrapper {
+        background: transparent;
+        border-color: rgba(107, 107, 102, 0.18);
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+        &::placeholder {
+            color: #B8B8B0;
+        }
+
+        &:hover {
+            border-color: #5C7E68;
+            background: rgba(74, 107, 87, 0.02);
+        }
+
+        &:focus,
+        &-focused {
+            border-color: #4A6B57;
+            box-shadow: 0 0 0 3px rgba(74, 107, 87, 0.10);
+            background: transparent;
+        }
+    }
+
+    .ant-input-prefix {
+        color: #9A9A92;
+    }
+
+    .ant-form-item-label > label {
+        color: #2D2D2A;
+    }
+}
+
+// Loading 圆环还在用
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+// Accessibility: a11y 用户禁用所有过渡/动画
+@media (prefers-reduced-motion: reduce) {
+    .login-bg,
+    .login-bg * {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+// ============================================================
+// 管理台统一视觉（邻里二手 Forest + Cream + Sand）
+// 一次覆盖所有 PageContainer/ProTable 页面，不逐页改动
+// ============================================================
+
+// 页面头部：cream 渐变 + 标题排版（替换默认灰白条）
+.ant-pro-page-container-warp-page-header {
+    background: linear-gradient(180deg, rgba(74, 107, 87, 0.06) 0%, rgba(245, 241, 232, 0) 100%);
+    border-bottom: 1px solid rgba(107, 107, 102, 0.10);
+
+    .ant-pro-page-container-heading-title {
+        font-size: 20px;
+        font-weight: 600;
+        color: #2D2D2A;
+        letter-spacing: 0.5px;
+    }
+}
+
+// 内容区留白节奏
+.ant-pro-page-container-children-container {
+    padding-block: 20px;
+}
+
+// 卡片统一轻阴影 + 圆角（组件 borderRadius 已有，这里补投影层次）
+.ant-card {
+    box-shadow: 0 1px 6px rgba(45, 45, 42, 0.05);
+}
+
+// 表格：表头浅墨绿底 + 行 hover 奶油色，表格容器融入页面
+.ant-table-wrapper .ant-table-thead > tr > th {
+    background: rgba(74, 107, 87, 0.06);
+    color: #4A6B57;
+    font-weight: 600;
+}
+
+.ant-table-wrapper .ant-table-tbody > tr:hover > td {
+    background: rgba(201, 169, 97, 0.08) !important;
+}
+
+// ProTable 工具栏与查询表单卡片化观感
+.ant-pro-table .ant-pro-card-body {
+    padding-block: 16px;
+}
+
+// 细滚动条（sand 色），管理区长列表更精致
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(107, 107, 102, 0.28);
+    border-radius: 4px;
+
+    &:hover {
+        background: rgba(107, 107, 102, 0.45);
+    }
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+// 空状态文案弱化
+.ant-empty-description {
+    color: #B8B8B0;
+}
+
+// ============================================================
+// 移动端兜底（< 768px）—— 全站通用，逐页适配在各自 createStyles 里补
+// 断点约定见 src/pages/marketplace/styles/tokens.ts 的 mq
+// ============================================================
+
+// 内容区为底部 TabBar 预留高度（body 标记由 MobileTabBar 挂载/卸载）
+body.wb-mobile-tabbar {
+    #root .ant-pro-layout-container > .ant-pro-layout-content {
+        padding-bottom: calc(68px + env(safe-area-inset-bottom)) !important;
+    }
+}
+
+@media (max-width: 767px) {
+    // PageContainer 手机端压缩标题与留白
+    .ant-pro-page-container-children-container {
+        padding: 12px 12px 20px !important;
+    }
+
+    .ant-pro-page-container-warp-page-header {
+        padding: 10px 16px;
+
+        .ant-pro-page-container-heading-title {
+            font-size: 17px;
+        }
+
+        .ant-pro-page-container-heading {
+            margin-bottom: 0;
+        }
+    }
+
+    // 弹窗宽度兜底：不超出视口
+    .ant-modal {
+        max-width: calc(100vw - 16px) !important;
+
+        .ant-modal-content {
+            padding: 16px;
+        }
+    }
+
+    // 消息提示不遮挡顶部
+    .ant-message {
+        max-width: calc(100vw - 24px);
+    }
+
+    // 表格兜底加固：容器允许横滚（原有 .ant-table 规则的补充）
+    .ant-table-wrapper {
+        max-width: 100%;
+        overflow-x: auto;
+    }
+
+    // ProTable 查询表单单列化
+    .ant-pro-form .ant-form-item {
+        flex-direction: column;
+
+        .ant-form-item-label {
+            padding-bottom: 4px;
+        }
+    }
+}
+
+// 移动端隐藏桌面页脚的备用方案：部分页面未走 PageContainer 时也能被覆盖
+@media (max-width: 767px) {
+    .wb-desktop-only {
+        display: none !important;
+    }
+}
+
+// ============================================================
+// ProLayout 侧边菜单抽屉（移动端 <992px 汉堡展开的 Drawer）
+// 实测（375x812 视口）：该抽屉没有 ant-pro-drawer-sider 类，
+// 实际类名为 .ant-drawer.ant-drawer-inline，inline 渲染在 .ant-design-pro 容器内。
+//
+// ⚠️ 真机修复（2026-09-23 用户截图）：antd 默认 root 为 absolute + inset:0，
+// 在真机浏览器上锚定/尺寸解析异常 → 白底中途截断、菜单透明溢出到商品上、
+// 遮罩不渲染。这里整条链显式化：root 固定为视口 fixed（显式四边，不用 inset 简写），
+// mask 全屏，wrapper/content/body 全高，菜单超高时在 body 内部滚动，不再溢出。
+// ============================================================
+.ant-design-pro .ant-drawer-inline {
+    position: fixed !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    z-index: 1002 !important;
+}
+
+.ant-design-pro .ant-drawer-inline .ant-drawer-mask {
+    position: fixed !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+}
+
+.ant-design-pro .ant-drawer-inline .ant-drawer-content-wrapper {
+    position: absolute !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    height: 100% !important;
+}
+
+.ant-design-pro .ant-drawer-inline .ant-drawer-content {
+    height: 100% !important;
+}
+
+.ant-design-pro .ant-drawer-inline .ant-drawer-body {
+    // 全高 + 内部滚动：菜单项多时在抽屉内滚动，绝不溢出白底
+    height: 100% !important;
+    overflow-y: auto !important;
+    // 简写单声明 + !important：避免构建器 CSS 优化合并/拆分 padding 声明后
+    // bottom 分量被弃（曾出现样式表规则正确但 computed 仍 0px 的怪象）
+    padding: 0 0 calc(68px + env(safe-area-inset-bottom)) 0 !important;
+}
+
+// ============================================================
+// 移动端适配辅助类（2026-09-25 复查报告第三期）
+// 断点基准：<768px 为移动端（与 useIsMobile / tokens.mq.mobile 一致）
+// 用法：给任意元素挂 .tw-desktop-only / .tw-mobile-only 做 CSS 级显隐，
+//       比 JS matchMedia 分支更轻，适合 header 图标这类纯显隐场景。
+// ============================================================
+.tw-desktop-only {
+    display: initial;
+}
+
+.tw-mobile-only {
+    display: none;
+}
+
+@media (max-width: 767px) {
+    .tw-desktop-only {
+        display: none !important;
+    }
+
+    .tw-mobile-only {
+        display: initial !important;
+    }
+}
+
+// 安全区兜底：页面级底部固定操作条（提交/支付按钮等）统一留出
+// iOS Home 指示条空间；非全面屏 env() 为 0 无副作用。
+.tw-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+// 底部粘性操作条通用样式（第二期表单/详情页统一用）
+.tw-sticky-footer-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+}

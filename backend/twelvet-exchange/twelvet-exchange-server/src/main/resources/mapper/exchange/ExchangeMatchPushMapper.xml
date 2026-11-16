@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.exchange.server.mapper.ExchangeMatchPushMapper">
+
+    <!-- 已推送名单快照（Quartz 显式传行内 tenant_id） -->
+    <select id="selectByItemId" resultType="map">
+        SELECT pushed_user_ids AS pushedUserIds, last_push_time AS lastPushTime
+        FROM twelve_exchange_match_push
+        WHERE item_id = #{itemId}
+          AND tenant_id = #{tenantId}
+        LIMIT 1
+    </select>
+
+    <!-- upsert 快照（uk_item 冲突时更新已推名单与推送时间） -->
+    <insert id="upsertPush">
+        INSERT INTO twelve_exchange_match_push
+            (tenant_id, item_id, pushed_user_ids, last_push_time, create_time, update_time)
+        VALUES
+            (#{tenantId}, #{itemId}, #{pushedUserIds}, NOW(), NOW(), NOW())
+        ON DUPLICATE KEY UPDATE
+            pushed_user_ids = VALUES(pushed_user_ids),
+            last_push_time = NOW()
+    </insert>
+
+</mapper>

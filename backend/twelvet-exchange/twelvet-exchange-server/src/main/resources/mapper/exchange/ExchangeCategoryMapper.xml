@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.exchange.server.mapper.ExchangeCategoryMapper">
+
+    <!-- 只读复用商品类目字典（product_category_dict 为平台级字典，不带租户） -->
+    <select id="selectCategoryTree" resultType="map">
+        SELECT code, parent_code AS parentCode, level, name, sort
+        FROM product_category_dict
+        ORDER BY sort
+    </select>
+
+</mapper>

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.trade.server.mapper.SellerBalanceFlowMapper">
+
+    <resultMap type="SellerBalanceFlow" id="FlowResult">
+        <id property="flowId" column="flow_id"/>
+        <result property="accountId" column="account_id"/>
+        <result property="sellerId" column="seller_id"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="settlementId" column="settlement_id"/>
+        <result property="refundId" column="refund_id"/>
+        <result property="withdrawId" column="withdraw_id"/>
+        <result property="type" column="type"/>
+        <result property="amount" column="amount"/>
+        <result property="balanceAfter" column="balance_after"/>
+        <result property="bizKey" column="biz_key"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <insert id="insertIgnore" parameterType="SellerBalanceFlow" useGeneratedKeys="true" keyProperty="flowId">
+        INSERT IGNORE INTO seller_balance_flow
+            (account_id, seller_id, tenant_id, settlement_id, refund_id, withdraw_id,
+             type, amount, balance_after, biz_key, create_time)
+        VALUES (#{accountId}, #{sellerId}, #{tenantId}, #{settlementId}, #{refundId}, #{withdrawId},
+                #{type}, #{amount}, #{balanceAfter}, #{bizKey}, NOW())
+    </insert>
+
+    <select id="sumAmount" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(amount), 0) FROM seller_balance_flow WHERE account_id = #{accountId}
+    </select>
+
+    <select id="selectLast" resultMap="FlowResult">
+        SELECT flow_id, account_id, seller_id, tenant_id, settlement_id, refund_id, withdraw_id,
+               type, amount, balance_after, biz_key, create_time
+        FROM seller_balance_flow
+        WHERE account_id = #{accountId}
+        ORDER BY flow_id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectAccountsWithLedgerDrift" resultType="map">
+        SELECT a.account_id AS accountId, a.seller_id AS sellerId, a.tenant_id AS tenantId,
+               a.balance AS balance, COALESCE(SUM(f.amount), 0) AS flowSum
+        FROM seller_account a
+        LEFT JOIN seller_balance_flow f ON f.account_id = a.account_id
+        GROUP BY a.account_id, a.seller_id, a.tenant_id, a.balance
+        HAVING a.balance &lt;&gt; COALESCE(SUM(f.amount), 0)
+        LIMIT 1000
+    </select>
+
+    <!--
+      最后一条流水的 balance_after 必须等于账户余额。该检查独立于金额合计：
+      合计相等但 balance_after 写错（例如 INSERT IGNORE 把 NULL 静默写成 0.00）时也必须能发现。
+    -->
+    <select id="selectAccountsWithLastBalanceDrift" resultType="map">
+        SELECT a.account_id AS accountId, a.seller_id AS sellerId, a.tenant_id AS tenantId,
+               a.balance AS balance, f.balance_after AS lastBalance
+        FROM seller_account a
+        JOIN seller_balance_flow f ON f.flow_id = (
+            SELECT f2.flow_id FROM seller_balance_flow f2
+            WHERE f2.account_id = a.account_id
+            ORDER BY f2.flow_id DESC
+            LIMIT 1
+        )
+        WHERE a.balance &lt;&gt; f.balance_after
+        LIMIT 1000
+    </select>
+
+</mapper>

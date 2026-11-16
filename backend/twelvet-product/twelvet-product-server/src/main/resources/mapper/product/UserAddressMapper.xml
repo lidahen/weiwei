@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.product.server.mapper.UserAddressMapper">
+
+    <resultMap type="map" id="AddressResult">
+        <result property="addressId" column="address_id"/>
+        <result property="receiver" column="receiver"/>
+        <result property="mobile" column="mobile"/>
+        <result property="province" column="province"/>
+        <result property="city" column="city"/>
+        <result property="district" column="district"/>
+        <result property="detail" column="detail"/>
+        <result property="isDefault" column="is_default"/>
+    </resultMap>
+
+    <select id="selectAddressList" resultMap="AddressResult">
+        SELECT address_id, receiver, mobile, province, city, district, detail, is_default
+        FROM user_address
+        WHERE user_id = #{userId}
+        ORDER BY is_default DESC, address_id DESC
+    </select>
+
+    <!-- 归属校验与读取一步完成：user_id 不命中即返回 null（防用他人地址下单） -->
+    <select id="selectAddressById" resultMap="AddressResult">
+        SELECT address_id, receiver, mobile, province, city, district, detail, is_default
+        FROM user_address
+        WHERE address_id = #{addressId} AND user_id = #{userId}
+    </select>
+
+    <insert id="insertAddress">
+        INSERT INTO user_address (user_id, receiver, mobile, province, city, district, detail, is_default, create_time)
+        VALUES (#{userId}, #{receiver}, #{mobile}, #{province}, #{city}, #{district}, #{detail}, #{isDefault}, NOW())
+    </insert>
+
+    <update id="clearDefaultAddress">
+        UPDATE user_address SET is_default = 0 WHERE user_id = #{userId}
+    </update>
+
+    <delete id="deleteAddress">
+        DELETE FROM user_address WHERE address_id = #{addressId} AND user_id = #{userId}
+    </delete>
+
+</mapper>

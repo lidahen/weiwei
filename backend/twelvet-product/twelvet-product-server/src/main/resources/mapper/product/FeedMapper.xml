@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.product.server.mapper.FeedMapper">
+
+    <resultMap id="FeedResult" type="com.twelvet.product.api.domain.Feed">
+        <id property="feedId" column="feed_id"/>
+        <result property="userId" column="user_id"/>
+        <result property="content" column="content"/>
+        <result property="images" column="images"/>
+        <result property="relatedProductId" column="related_product_id"/>
+        <result property="visibility" column="visibility"/>
+        <result property="likeCount" column="like_count"/>
+        <result property="commentCount" column="comment_count"/>
+        <result property="forwardCount" column="forward_count"/>
+        <result property="hotScore" column="hot_score"/>
+        <result property="status" column="status"/>
+        <result property="auditStatus" column="audit_status"/>
+        <result property="auditReason" column="audit_reason"/>
+        <result property="originalFeedId" column="original_feed_id"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="publishTime" column="publish_time"/>
+        <result property="userNickName" column="user_nick_name"/>
+        <result property="userAvatar" column="user_avatar"/>
+        <result property="liked" column="liked"/>
+        <result property="relatedProductTitle" column="related_product_title"/>
+        <result property="relatedProductCover" column="related_product_cover"/>
+        <result property="relatedProductPrice" column="related_product_price"/>
+        <!-- AI 初审展示字段（仅 selectPendingFeeds 联表填充） -->
+        <result property="aiRiskLevel" column="ai_risk_level"/>
+        <result property="aiAction" column="ai_action"/>
+        <result property="aiSummary" column="ai_summary"/>
+        <result property="aiViolations" column="ai_violations"/>
+    </resultMap>
+
+    <sql id="feedCols">
+        f.feed_id, f.user_id, f.content, f.images, f.related_product_id,
+        f.visibility, f.like_count, f.comment_count, f.forward_count, f.hot_score,
+        f.status, f.audit_status, f.audit_reason, f.original_feed_id, f.tenant_id,
+        f.create_time, f.update_time, f.publish_time
+    </sql>
+
+    <select id="selectStream" resultMap="FeedResult">
+        SELECT <include refid="feedCols"/>,
+               u.nick_name AS user_nick_name,
+               u.avatar AS user_avatar
+        FROM feed f
+        LEFT JOIN sys_user u ON f.user_id = u.user_id
+        <where>
+            f.status = 'normal'
+            AND f.audit_status = 'approved'
+            <if test="tenantId != null">AND f.tenant_id = #{tenantId}</if>
+            <if test="userId != null">
+                AND (
+                    f.visibility = 'public'
+                    OR f.user_id = #{userId}
+                    OR EXISTS (
+                        SELECT 1 FROM user_relation ur
+                        WHERE ur.user_id = #{userId} AND ur.target_user_id = f.user_id
+                    )
+                )
+            </if>
+            <if test="maxHotScore != null and maxHotScore.compareTo(0) > 0">
+                AND f.hot_score &gt;= #{maxHotScore}
+            </if>
+        </where>
+        <choose>
+            <when test="type == 'hot'">
+                ORDER BY f.hot_score DESC, f.publish_time DESC
+            </when>
+            <otherwise>
+                ORDER BY f.publish_time DESC
+            </otherwise>
+        </choose>
+    </select>
+
+    <select id="selectMyFeeds" resultMap="FeedResult">
+        SELECT <include refid="feedCols"/>,
+               u.nick_name AS user_nick_name,
+               u.avatar AS user_avatar
+        FROM feed f
+        LEFT JOIN sys_user u ON f.user_id = u.user_id
+        WHERE f.user_id = #{userId}
+        <if test="tenantId != null">AND f.tenant_id = #{tenantId}</if>
+        <if test="visibility != null and visibility != ''">
+            AND f.visibility = #{visibility}
+        </if>
+        ORDER BY f.publish_time DESC
+    </select>
+
+    <select id="selectById" resultMap="FeedResult">
+        SELECT <include refid="feedCols"/>,
+               u.nick_name AS user_nick_name,
+               u.avatar AS user_avatar
+        FROM feed f
+        LEFT JOIN sys_user u ON f.user_id = u.user_id
+        WHERE f.feed_id = #{feedId}
+        <if test="tenantId != null">AND f.tenant_id = #{tenantId}</if>
+    </select>
+
+    <select id="selectPendingFeeds" resultMap="FeedResult">
+        SELECT <include refid="feedCols"/>,
+               u.nick_name AS user_nick_name,
+               u.avatar AS user_avatar,
+               m.risk_level AS ai_risk_level,
+               m.action AS ai_action,
+               m.summary AS ai_summary,
+               m.violations AS ai_violations
+        FROM feed f
+        LEFT JOIN sys_user u ON f.user_id = u.user_id
+        LEFT JOIN ai_moderation_log m ON m.log_id = (
+            SELECT ml.log_id FROM ai_moderation_log ml
+            WHERE ml.biz_type = 'post' AND ml.biz_id = f.feed_id AND ml.action != 'error'
+            ORDER BY ml.log_id DESC LIMIT 1
+        )
+        WHERE f.status = 'normal' AND f.audit_status = 'pending'
+        ORDER BY f.create_time DESC
+    </select>
+
+    <select id="search" resultMap="FeedResult">
+        SELECT <include refid="feedCols"/>,
+               u.nick_name AS user_nick_name,
+               u.avatar AS user_avatar
+        FROM feed f
+        LEFT JOIN sys_user u ON f.user_id = u.user_id
+        WHERE f.status = 'normal'
+          AND f.audit_status = 'approved'
+          AND (f.content LIKE CONCAT('%', #{keyword}, '%') OR f.images LIKE CONCAT('%', #{keyword}, '%'))
+        <if test="tenantId != null">AND f.tenant_id = #{tenantId}</if>
+        ORDER BY f.publish_time DESC
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="feedId">
+        INSERT INTO feed (user_id, content, images, related_product_id, visibility,
+                          status, audit_status, original_feed_id, publish_time, create_time, update_time
+                          <if test="tenantId != null">, tenant_id</if>)
+        VALUES (#{userId}, #{content}, #{images}, #{relatedProductId}, #{visibility},
+                #{status}, #{auditStatus}, #{originalFeedId}, #{publishTime}, #{createTime}, #{updateTime}
+                <if test="tenantId != null">, #{tenantId}</if>)
+    </insert>
+
+    <update id="update">
+        UPDATE feed
+        <set>
+            <if test="content != null and content != ''">content = #{content},</if>
+            <if test="images != null">images = #{images},</if>
+            <if test="relatedProductId != null">related_product_id = #{relatedProductId},</if>
+            <if test="visibility != null">visibility = #{visibility},</if>
+            audit_status = 'pending',
+            update_time = NOW()
+        </set>
+        WHERE feed_id = #{feedId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <update id="updateStatus">
+        UPDATE feed SET
+            status = #{status},
+            audit_status = #{auditStatus},
+            update_time = NOW()
+        WHERE feed_id = #{feedId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 举报处置专用：只删除尚未被删除的动态，影响行数 0 表示已被他人处理或行不存在 -->
+    <update id="updateStatusIfNot">
+        UPDATE feed SET
+            status = #{status},
+            audit_status = #{auditStatus},
+            update_time = NOW()
+        WHERE feed_id = #{feedId}
+          AND status &lt;&gt; #{excludeStatus}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <update id="updateStatusWithReason">
+        UPDATE feed SET
+            status = #{status},
+            audit_status = #{auditStatus},
+            audit_reason = #{auditReason},
+            update_time = NOW()
+        WHERE feed_id = #{feedId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <delete id="deleteById">
+        UPDATE feed SET status = 'deleted', update_time = NOW() WHERE feed_id = #{feedId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </delete>
+
+    <update id="incrementLikeCount">
+        UPDATE feed SET like_count = GREATEST(like_count + 1, 0), hot_score = (like_count + 1) * 1.0 + IFNULL(comment_count, 0) * 3.0 WHERE feed_id = #{feedId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <update id="decrementLikeCount">
+        UPDATE feed SET like_count = GREATEST(like_count - 1, 0), hot_score = GREATEST(like_count - 1, 0) * 1.0 + IFNULL(comment_count, 0) * 3.0 WHERE feed_id = #{feedId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <update id="decrementCommentCount">
+        UPDATE feed SET comment_count = GREATEST(comment_count - 1, 0), update_time = NOW() WHERE feed_id = #{feedId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <update id="incrementCommentCount">
+        UPDATE feed SET comment_count = comment_count + 1, hot_score = like_count * 1.0 + comment_count * 1.0 WHERE feed_id = #{feedId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <update id="incrementForwardCount">
+        UPDATE feed SET forward_count = forward_count + 1 WHERE feed_id = #{feedId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <select id="selectLikedFeedIds" resultType="long">
+        SELECT feed_id FROM feed_like WHERE user_id = #{userId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </select>
+
+    <select id="countLikeByFeedIdAndUserId" resultType="int">
+        SELECT COUNT(*) FROM feed_like WHERE feed_id = #{feedId} AND user_id = #{userId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </select>
+
+    <select id="selectRelatedProduct" resultMap="FeedResult">
+        SELECT p.title AS related_product_title,
+               p.cover AS related_product_cover,
+               CAST(p.price AS SIGNED) AS related_product_price
+        FROM product p
+        WHERE p.product_id = #{relatedProductId} AND p.status = 'onsale'
+        <if test="tenantId != null">AND p.tenant_id = #{tenantId}</if>
+    </select>
+
+    <update id="updateHotScore">
+        UPDATE feed SET hot_score = #{hotScore}, update_time = NOW() WHERE feed_id = #{feedId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <select id="selectByIds" resultMap="FeedResult">
+        SELECT <include refid="feedCols"/>
+        FROM feed f
+        WHERE f.feed_id IN
+        <foreach collection="feedIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        <if test="tenantId != null">AND f.tenant_id = #{tenantId}</if>
+    </select>
+
+</mapper>

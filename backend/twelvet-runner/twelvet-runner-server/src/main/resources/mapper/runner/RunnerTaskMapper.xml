@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.runner.server.mapper.RunnerTaskMapper">
+
+    <resultMap id="TaskResult" type="com.twelvet.runner.api.domain.RunnerTask">
+        <id property="id" column="id"/>
+        <result property="taskNo" column="task_no"/>
+        <result property="publisherId" column="publisher_id"/>
+        <result property="assigneeId" column="assignee_id"/>
+        <result property="taskType" column="task_type"/>
+        <result property="title" column="title"/>
+        <result property="description" column="description"/>
+        <result property="pickupAddr" column="pickup_addr"/>
+        <result property="deliverAddr" column="deliver_addr"/>
+        <result property="pickupLat" column="pickup_lat"/>
+        <result property="pickupLng" column="pickup_lng"/>
+        <result property="deliverLat" column="deliver_lat"/>
+        <result property="deliverLng" column="deliver_lng"/>
+        <result property="isPaid" column="is_paid"/>
+        <result property="price" column="price"/>
+        <result property="status" column="status"/>
+        <result property="expectTime" column="expect_time"/>
+        <result property="deadline" column="deadline"/>
+        <result property="assignTime" column="assign_time"/>
+        <result property="finishTime" column="finish_time"/>
+        <result property="confirmTime" column="confirm_time"/>
+        <result property="cancelReason" column="cancel_reason"/>
+        <result property="refundReason" column="refund_reason"/>
+        <result property="refundStatus" column="refund_status"/>
+        <result property="payOrderId" column="pay_order_id"/>
+        <result property="payOutTradeNo" column="pay_out_trade_no"/>
+        <result property="payStatus" column="pay_status"/>
+        <result property="images" column="images"/>
+        <result property="finishImages" column="finish_images"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateBy" column="update_by"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="remark" column="remark"/>
+        <result property="tenantId" column="tenant_id"/>
+    </resultMap>
+
+    <sql id="taskCols">
+        id, task_no, publisher_id, assignee_id, task_type, title, description,
+        pickup_addr, deliver_addr, pickup_lat, pickup_lng, deliver_lat, deliver_lng,
+        is_paid, price, status, expect_time, deadline,
+        assign_time, finish_time, confirm_time, cancel_reason, refund_reason, refund_status,
+        pay_order_id, pay_out_trade_no, pay_status, images, finish_images,
+        create_by, create_time, update_by, update_time, remark, tenant_id
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO twelve_runner_task
+            (task_no, publisher_id, task_type, title, description,
+             pickup_addr, deliver_addr, pickup_lat, pickup_lng, deliver_lat, deliver_lng,
+             is_paid, price, status, expect_time, deadline,
+             images, create_by, create_time, update_time, tenant_id)
+        VALUES
+            (#{taskNo}, #{publisherId}, #{taskType}, #{title}, #{description},
+             #{pickupAddr}, #{deliverAddr}, #{pickupLat}, #{pickupLng}, #{deliverLat}, #{deliverLng},
+             #{isPaid}, #{price}, #{status}, #{expectTime}, #{deadline},
+             #{images}, #{createBy}, NOW(), NOW(), #{tenantId})
+    </insert>
+
+    <!-- 乐观锁接单：status=pending AND 未过期 AND 非自接 -->
+    <update id="assignAtomically">
+        UPDATE twelve_runner_task
+        SET assignee_id = #{runnerId},
+            status = 'accepted',
+            assign_time = #{now},
+            update_time = NOW()
+        WHERE id = #{taskId}
+          AND status = 'pending'
+          AND deadline &gt; #{now}
+          AND publisher_id != #{runnerId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 通用状态机迁移 -->
+    <update id="transitionStatus">
+        UPDATE twelve_runner_task
+        SET status = #{toStatus}, update_time = NOW()
+        WHERE id = #{taskId} AND status = #{fromStatus}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 状态机迁移 + 时间戳列 -->
+    <update id="transitionWithTimestamp">
+        UPDATE twelve_runner_task
+        SET status = #{toStatus}, ${timeColumn} = NOW(), update_time = NOW()
+        WHERE id = #{taskId} AND status = #{fromStatus}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <update id="cancelTask">
+        UPDATE twelve_runner_task
+        SET status = #{status}, cancel_reason = #{cancelReason}, update_time = NOW()
+        WHERE id = #{taskId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!-- 互助大厅：可接 + 未过期 + 已支付（付费任务） -->
+    <select id="selectHall" resultMap="TaskResult">
+        SELECT <include refid="taskCols"/>
+        FROM twelve_runner_task
+        WHERE status = 'pending' AND deadline &gt; NOW()
+          AND (is_paid = 0 OR pay_status = 'paid')
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        <if test="taskType != null">AND task_type = #{taskType}</if>
+        <if test="minPrice != null">AND price &gt;= #{minPrice}</if>
+        <if test="maxPrice != null">AND price &lt;= #{maxPrice}</if>
+        ORDER BY price DESC, create_time DESC
+        <if test="limit != null and limit > 0">LIMIT #{limit}</if>
+    </select>
+
+    <select id="selectMyPublished" resultMap="TaskResult">
+        SELECT <include refid="taskCols"/>
+        FROM twelve_runner_task
+        WHERE publisher_id = #{publisherId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        <if test="status != null and status != ''">AND status = #{status}</if>
+        ORDER BY create_time DESC
+        <if test="limit != null and limit > 0">LIMIT #{limit}</if>
+    </select>
+
+    <select id="selectMyTaken" resultMap="TaskResult">
+        SELECT <include refid="taskCols"/>
+        FROM twelve_runner_task
+        WHERE assignee_id = #{runnerId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+        <if test="status != null and status != ''">AND status = #{status}</if>
+        ORDER BY assign_time DESC
+        <if test="limit != null and limit > 0">LIMIT #{limit}</if>
+    </select>
+
+    <select id="selectById" resultMap="TaskResult">
+        SELECT <include refid="taskCols"/>
+        FROM twelve_runner_task
+        WHERE id = #{taskId}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </select>
+
+    <!-- 平台管理：分页查询（全状态，status 精确 + keyword 模糊 title/task_no/description） -->
+    <sql id="adminPageWhere">
+        <where>
+            <if test="tenantId != null">tenant_id = #{tenantId}</if>
+            <if test="status != null and status != ''">AND status = #{status}</if>
+            <if test="keyword != null and keyword != ''">
+                AND (title LIKE CONCAT('%', #{keyword}, '%')
+                  OR task_no LIKE CONCAT('%', #{keyword}, '%')
+                  OR description LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+    </sql>
+
+    <select id="selectAdminPage" resultMap="TaskResult">
+        SELECT <include refid="taskCols"/>
+        FROM twelve_runner_task
+        <include refid="adminPageWhere"/>
+        ORDER BY id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countAdminPage" resultType="long">
+        SELECT COUNT(*)
+        FROM twelve_runner_task
+        <include refid="adminPageWhere"/>
+    </select>
+
+    <select id="selectStatistics" resultType="map">
+        SELECT
+            COUNT(*) AS totalTasks,
+            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pendingCount,
+            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completedCount,
+            SUM(CASE WHEN status IN ('accepted','running','pending_confirm') THEN 1 ELSE 0 END) AS activeCount,
+            COALESCE(SUM(CASE WHEN is_paid = 1 AND status = 'completed' THEN price ELSE 0 END), 0) AS totalGmv
+        FROM twelve_runner_task
+        <where>
+            <if test="tenantId != null">tenant_id = #{tenantId}</if>
+        </where>
+    </select>
+
+    <select id="selectExpiredPending" resultMap="TaskResult">
+        SELECT <include refid="taskCols"/>
+        FROM twelve_runner_task
+        WHERE status = 'pending' AND deadline &lt;= #{now}
+        <!-- 定时任务全局扫描（跨租户），租户隔离由下游逐行以任务自身 tenant_id 处理；
+             勿加 tenantId 条件：接口无该参数，MyBatis 绑定时会抛 Parameter not found -->
+        <if test="limit != null and limit > 0">LIMIT #{limit}</if>
+    </select>
+
+    <!-- 退款对账（2026-11-03 批次2）：取消成功但退款失败/漏退的滞留任务，兜底重试。
+         只有取消赢家（CAS 胜者）才会置 cancelled，无双退风险；refund 入口非 paid 拒绝再兜一层 -->
+    <select id="selectCancelledPaid" resultMap="TaskResult">
+        SELECT <include refid="taskCols"/>
+        FROM twelve_runner_task
+        WHERE status = 'cancelled' AND is_paid = 1 AND pay_status = 'paid'
+          AND pay_out_trade_no IS NOT NULL
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectExpiredPendingConfirm" resultMap="TaskResult">
+        SELECT <include refid="taskCols"/>
+        FROM twelve_runner_task
+        WHERE status = 'pending_confirm' AND finish_time &lt;= #{now}
+        <!-- 定时任务全局扫描（跨租户），租户隔离由下游逐行以任务自身 tenant_id 处理 -->
+        <if test="limit != null and limit > 0">LIMIT #{limit}</if>
+    </select>
+
+    <update id="updatePayOrderId">
+        UPDATE twelve_runner_task
+        SET pay_order_id = #{payOrderId}, update_time = NOW()
+        WHERE id = #{taskId}
+    </update>
+
+    <update id="updateByIdForFinishImages">
+        UPDATE twelve_runner_task
+        SET finish_images = #{finishImages}, update_time = NOW()
+        WHERE id = #{taskId}
+    </update>
+
+    <update id="bindPayInfo">
+        UPDATE twelve_runner_task
+        SET pay_order_id = #{payOrderId}, pay_out_trade_no = #{payOutTradeNo}, update_time = NOW()
+        WHERE id = #{taskId}
+    </update>
+
+    <update id="markPayStatusByOutTradeNo">
+        UPDATE twelve_runner_task
+        SET pay_status = #{payStatus}, update_time = NOW()
+        WHERE pay_out_trade_no = #{payOutTradeNo}
+    </update>
+
+    <select id="selectTaskIdByOutTradeNo" resultType="long">
+        SELECT id FROM twelve_runner_task WHERE pay_out_trade_no = #{payOutTradeNo} LIMIT 1
+    </select>
+
+    <!-- 守卫：仅限 paid 迁移——已 cancelled 任务不得被迟到支付标回 paid（超时取消后回调迟到）；
+         同状态重复写幂等。⚠️ 退款标记（paid→refunded）必须走 markPayRefundedByTaskId，
+         本语句的 cancelled 守卫会拦截已取消任务的合法退款标记（final review 发现 #1） -->
+    <update id="markPayStatusByTaskId">
+        UPDATE twelve_runner_task
+        SET pay_status = #{payStatus}, update_time = NOW()
+        WHERE id = #{taskId} AND pay_status = 'unpaid' AND status != 'cancelled'
+    </update>
+
+    <!-- 退款标记（paid→refunded）：仅 paid 可翻（防迟到支付把 unpaid 翻成 refunded），
+         不限任务状态——用户取消已付费任务后 status='cancelled'，此时退款标记必须成功 -->
+    <update id="markPayRefundedByTaskId">
+        UPDATE twelve_runner_task
+        SET pay_status = 'refunded', update_time = NOW()
+        WHERE id = #{taskId} AND pay_status = 'paid'
+    </update>
+
+</mapper>

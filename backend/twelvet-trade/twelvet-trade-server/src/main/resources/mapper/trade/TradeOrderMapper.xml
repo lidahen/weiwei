@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.trade.server.mapper.TradeOrderMapper">
+
+    <resultMap type="TradeOrder" id="OrderResult">
+        <id property="orderId" column="order_id"/>
+        <result property="orderNo" column="order_no"/>
+        <result property="buyerId" column="buyer_id"/>
+        <result property="sellerId" column="seller_id"/>
+        <result property="productId" column="product_id"/>
+        <result property="productSnapshot" column="product_snapshot"/>
+        <result property="skuPrice" column="sku_price"/>
+        <result property="freight" column="freight"/>
+        <result property="totalAmount" column="total_amount"/>
+        <result property="deliveryType" column="delivery_type"/>
+        <result property="addressSnapshot" column="address_snapshot"/>
+        <result property="buyerRemark" column="buyer_remark"/>
+        <result property="status" column="status"/>
+        <result property="expireAt" column="expire_at"/>
+        <result property="createTime" column="create_time"/>
+        <result property="paidAt" column="paid_at"/>
+        <result property="shippedAt" column="shipped_at"/>
+        <result property="doneAt" column="done_at"/>
+        <result property="autoConfirmAt" column="auto_confirm_at"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="buyerNickName" column="buyer_nick_name"/>
+        <result property="buyerAvatar" column="buyer_avatar"/>
+        <result property="sellerNickName" column="seller_nick_name"/>
+        <result property="sellerAvatar" column="seller_avatar"/>
+    </resultMap>
+
+    <sql id="selectOrderVo">
+        SELECT o.order_id, o.order_no, o.buyer_id, o.seller_id, o.product_id,
+               o.product_snapshot, o.sku_price, o.freight, o.total_amount,
+               o.delivery_type, o.address_snapshot, o.buyer_remark,
+               o.status, o.create_time, o.expire_at, o.paid_at, o.shipped_at, o.done_at, o.auto_confirm_at, o.update_time, o.tenant_id,
+               bu.nick_name buyer_nick_name, bu.avatar buyer_avatar,
+               se.nick_name seller_nick_name, se.avatar seller_avatar
+        FROM trade_order o
+        LEFT JOIN sys_user bu ON o.buyer_id = bu.user_id
+        LEFT JOIN sys_user se ON o.seller_id = se.user_id
+    </sql>
+
+    <select id="selectOrderList" resultMap="OrderResult">
+        <include refid="selectOrderVo"/>
+        <where>
+            <choose>
+                <when test="role == 'buyer'">
+                    AND o.buyer_id = #{userId}
+                </when>
+                <otherwise>
+                    AND o.seller_id = #{userId}
+                </otherwise>
+            </choose>
+            <if test="status != null and status != '' and status != 'all'">
+                <!-- 支持逗号分隔多状态（如 unshipped,paid：待发货 Tab 同时覆盖已付款订单） -->
+                AND o.status IN
+                <foreach item="s" collection="status.split(',')" open="(" separator="," close=")">
+                    #{s}
+                </foreach>
+            </if>
+            <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>
+        </where>
+        ORDER BY o.create_time DESC
+    </select>
+
+    <select id="selectOrderDetail" resultMap="OrderResult">
+        <include refid="selectOrderVo"/>
+        WHERE o.order_id = #{orderId}
+        <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>
+    </select>
+
+    <select id="selectOrderByIdAndBuyerId" resultMap="OrderResult">
+        <include refid="selectOrderVo"/>
+        WHERE o.order_id = #{orderId} AND o.buyer_id = #{buyerId}
+        <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>
+    </select>
+
+    <select id="selectOrderByNo" resultMap="OrderResult">
+        SELECT order_id, order_no, buyer_id, seller_id, product_id, total_amount, status, tenant_id
+        FROM trade_order
+        WHERE order_no = #{orderNo}
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </select>
+
+    <!-- 下单不再写 paid_at（旧版下单即写 sysdate() 属脏数据 bug）；expire_at 供超时关单任务扫描 -->
+    <insert id="insertOrder" parameterType="TradeOrder" useGeneratedKeys="true" keyProperty="orderId">
+        INSERT INTO trade_order (order_no, buyer_id, seller_id, product_id, product_snapshot,
+                                 sku_price, freight, total_amount, delivery_type, address_snapshot,
+                                 buyer_remark, expire_at, status, create_time, update_time
+                                 <if test="tenantId != null">, tenant_id</if>)
+        VALUES (#{orderNo}, #{buyerId}, #{sellerId}, #{productId}, #{productSnapshot},
+                #{skuPrice}, #{freight}, #{totalAmount}, #{deliveryType}, #{addressSnapshot},
+                #{buyerRemark}, #{expireAt}, 'unpaid', sysdate(), sysdate()
+                <if test="tenantId != null">, #{tenantId}</if>)
+    </insert>
+
+    <update id="updateOrderStatus">
+        <!-- status='unpaid' 前置：唯一调用方 PaySuccessEventListener 的语义是"unpaid → unshipped"
+             支付迁移。没有前置时，迟到回调会把已取消（closed、库存已释放）的订单复活为 unshipped，
+             导致可发货/超卖。rows=0 由监听器吞掉（只 log），保证回调幂等、不触发渠道重试风暴。 -->
+        UPDATE trade_order SET status = #{status}, update_time = sysdate()
+        <if test="timestamp != null">
+            , ${timestamp} = sysdate()
+        </if>
+        WHERE order_id = #{orderId} AND status = 'unpaid'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!--
+      通用前置状态迁移（退款流程专用）：fromStatuses 由调用方给出，rows=0 即状态已被并发改动。
+      ⚠️ 不复用 updateOrderStatus —— 那个硬编码 AND status='unpaid'，是支付回调监听器专用。
+    -->
+    <update id="updateOrderStatusIfIn">
+        UPDATE trade_order SET status = #{toStatus}, update_time = NOW()
+        WHERE order_id = #{orderId}
+          AND status IN
+        <foreach collection="fromStatuses" item="s" open="(" separator="," close=")">#{s}</foreach>
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <update id="confirmReceipt">
+        UPDATE trade_order SET status = 'done', done_at = sysdate(), update_time = sysdate()
+        WHERE order_id = #{orderId} AND buyer_id = #{buyerId} AND status = 'shipped'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!--
+      发货：auto_confirm_at = 发货时间 + autoConfirmDays 天（超时自动确认收货任务扫描此列）。
+      ⚠️ status IN ('unshipped','paid') 是存量野状态 paid 订单的唯一兼容口（Review Focus #3）：
+      监听器已改写 unshipped，不再产生 paid；历史 paid 单仍可正常发货。
+    -->
+    <update id="shipOrder">
+        UPDATE trade_order SET status = 'shipped', shipped_at = sysdate(),
+                              auto_confirm_at = DATE_ADD(NOW(), INTERVAL #{autoConfirmDays} DAY),
+                              update_time = sysdate()
+        WHERE order_id = #{orderId} AND seller_id = #{sellerId} AND status IN ('unshipped','paid')
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!--
+      买家取消未支付订单：仅 status='unpaid' 可取消。
+      与超时关单任务（Task 3）并发时双方都走 WHERE status='unpaid' 原子 UPDATE，
+      只有一方 rows=1——Java 层只有 rows=1 才释放库存（Review Focus #4，防双倍回补）。
+    -->
+    <update id="cancelOrder">
+        UPDATE trade_order SET status = 'closed', update_time = sysdate()
+        WHERE order_id = #{orderId} AND buyer_id = #{buyerId} AND status = 'unpaid'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+    <!--
+      超时关单任务扫描（quartz 无租户上下文，故意无租户参数——全租户扫描）：
+      仅取 expire_at 已过期的 unpaid 单（expire_at 由下单链路写入，历史脏数据 NULL 不误伤）。
+    -->
+    <select id="selectExpiredUnpaidOrders" resultMap="OrderResult">
+        SELECT order_id, product_id FROM trade_order
+        WHERE status = 'unpaid' AND expire_at IS NOT NULL AND expire_at &lt; NOW()
+        LIMIT #{limit}
+    </select>
+
+    <!--
+      超时关单（原子）：仅 status='unpaid' 命中。与买家主动取消（cancelOrder）并发时
+      双方都走 WHERE status='unpaid' 原子 UPDATE，只有一方 rows=1——Java 层只有 rows=1
+      才释放库存（Review Focus #4，防双倍回补）。
+      支付守卫：有已 paid 的 trade 支付单不可关单（防「扣了钱、单已关、库存转售」资金窗口）。
+      守卫按 biz_type='trade' 精确匹配——runner/renew 的 paid 单（order_id 多态撞号）不影响关单
+      （2026-11-03 biz_type 消歧后 §8.4 驳回的守卫成立）。
+      ⚠️ 不复用 updateOrderStatus（其 unpaid 前置为支付回调专用，语义不同、独立成句）。
+    -->
+    <update id="closeOrder">
+        UPDATE trade_order o SET o.status = 'closed', o.update_time = NOW()
+        WHERE o.order_id = #{orderId} AND o.status = 'unpaid'
+          AND NOT EXISTS (
+            SELECT 1 FROM trade_pay p
+            WHERE p.order_id = o.order_id AND p.biz_type = 'trade' AND p.status = 'paid'
+          )
+    </update>
+
+    <!--
+      自动确认收货任务扫描（quartz 无租户上下文，故意无租户参数——全租户扫描）：
+      仅取 auto_confirm_at 已到期的 shipped 单（auto_confirm_at 由发货链路写入）。
+    -->
+    <select id="selectAutoConfirmDueOrders" resultMap="OrderResult">
+        SELECT order_id, product_id FROM trade_order
+        WHERE status = 'shipped' AND auto_confirm_at IS NOT NULL AND auto_confirm_at &lt; NOW()
+        LIMIT #{limit}
+    </select>
+
+    <!--
+      发货超时自动确认收货（原子）：仅 status='shipped' 命中。与买家主动确认（confirmReceipt）
+      并发时双方都走 WHERE status='shipped' 原子 UPDATE，只有一方 rows=1——Java 层只有 rows=1
+      才标记商品 sold（防与确认链路重复流转）。
+    -->
+    <update id="autoConfirmOrder">
+        UPDATE trade_order SET status = 'done', done_at = NOW(), update_time = NOW()
+        WHERE order_id = #{orderId} AND status = 'shipped'
+    </update>
+
+    <select id="selectOrderStatistics" resultType="map">
+        SELECT
+            COUNT(*) AS totalOrders,
+            COALESCE(SUM(total_amount), 0) AS totalGmv,
+            (SELECT COALESCE(SUM(total_amount), 0) FROM trade_order WHERE status IN ('unshipped','shipped','done')) AS paidGmv
+        FROM trade_order
+    </select>
+
+    <!--
+      内部接口下单时的"引导查询"：此时还没有租户上下文，所以故意不加租户过滤。
+      租户ID 以 sys_user.tenant_id 为唯一权威来源（不信任任何请求头/请求体传入的租户标识）。
+    -->
+    <select id="selectUserTenantId" resultType="java.lang.Long">
+        SELECT tenant_id FROM sys_user WHERE user_id = #{userId} LIMIT 1
+    </select>
+
+</mapper>

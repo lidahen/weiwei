@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.twelvet.product.server.mapper.UserMapper">
+
+    <select id="selectUserById" resultType="map">
+        SELECT user_id, username, nick_name, avatar, user_type,
+               phonenumber, sex, create_time, remark
+        FROM sys_user
+        WHERE user_id = #{userId}
+    </select>
+
+    <select id="selectUserByIds" resultType="map">
+        SELECT user_id, username, nick_name, avatar, user_type,
+               phonenumber, sex, create_time, remark
+        FROM sys_user
+        WHERE user_id IN
+        <foreach collection="userIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <!-- 卖家信用汇总：评价来自 trade_review(买家评卖家)，完成订单来自 trade_order。
+         跨模块表直查先例：DailyReportMapper.xml 直查 product/trade_order，避免模块依赖环 -->
+    <!--
+      卖家信用画像（口径对齐接单人信用分，见 docs/跑腿信用与评价设计.md）
+        公式 base          = avgScore × 20（无评价默认 80，新人保护）
+             completionRate = 近30天已完成 / 近30天成交订单（近30天无成交记 1.0，中性不奖不罚）
+             creditScore    = clamp(round(base × (0.7 + 0.3 × completionRate)) - 5 × penalizedCount30d, 0, 100)
+
+      失信单（每单扣 5 分）三类，按 order_id 去重 —— 同一单既退款又被判纠纷时只扣一次：
+        ① 退款成功（卖家责任）
+        ② 纠纷被判买家胜诉 / 部分胜诉
+        ③ 超时未发货（下单超 72h 仍未发货）
+      三个明细计数（未去重）单独返回，供前端解释"为什么被扣分"。
+
+      时间窗口统一用 create_time：seed/历史数据的 done_at、paid_at 可能为 NULL，
+      用事件时间会漏算已完成订单。
+    -->
+    <select id="selectSellerCreditProfile" resultType="map">
+        SELECT
+            (SELECT COUNT(*) FROM trade_review r
+                WHERE r.reviewee_id = #{userId} AND r.role = 'buyer' AND r.status = 'normal'
+                <if test="tenantId != null">AND r.tenant_id = #{tenantId}</if>) AS reviewCount,
+            (SELECT COUNT(*) FROM trade_review r
+                WHERE r.reviewee_id = #{userId} AND r.role = 'buyer' AND r.status = 'normal'
+                  AND r.overall_score &gt;= 4
+                <if test="tenantId != null">AND r.tenant_id = #{tenantId}</if>) AS goodCount,
+            (SELECT ROUND(AVG(r.overall_score), 1) FROM trade_review r
+                WHERE r.reviewee_id = #{userId} AND r.role = 'buyer' AND r.status = 'normal'
+                <if test="tenantId != null">AND r.tenant_id = #{tenantId}</if>) AS avgScore,
+            (SELECT COUNT(*) FROM trade_order o
+                WHERE o.seller_id = #{userId} AND o.status = 'done'
+                <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>) AS completedCount,
+            (SELECT COUNT(*) FROM trade_order o
+                WHERE o.seller_id = #{userId} AND o.status IN ('unshipped','shipped','done')
+                <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>) AS paidCount,
+            (SELECT COUNT(*) FROM trade_order o
+                WHERE o.seller_id = #{userId} AND o.status = 'done'
+                  AND o.create_time &gt;= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>) AS completedCount30d,
+            (SELECT COUNT(*) FROM trade_order o
+                WHERE o.seller_id = #{userId} AND o.status IN ('unshipped','shipped','done')
+                  AND o.create_time &gt;= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>) AS paidCount30d,
+            (SELECT COUNT(*) FROM trade_order o
+                JOIN trade_refund rf ON rf.order_id = o.order_id
+                WHERE o.seller_id = #{userId} AND rf.status = 'refund_success'
+                  AND o.create_time &gt;= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>) AS refundCount30d,
+            (SELECT COUNT(*) FROM trade_dispute d
+                JOIN trade_order od ON od.order_id = d.order_id
+                WHERE d.seller_id = #{userId} AND d.judge_decision IN ('buyer','partial')
+                  AND d.create_time &gt;= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                <if test="tenantId != null">AND od.tenant_id = #{tenantId}</if>) AS disputeCount30d,
+            (SELECT COUNT(*) FROM trade_order o
+                WHERE o.seller_id = #{userId} AND o.status = 'unshipped'
+                  AND o.create_time &gt;= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                  AND o.create_time &lt; DATE_SUB(NOW(), INTERVAL 72 HOUR)
+                <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>) AS overdueCount30d,
+            (SELECT COUNT(DISTINCT x.order_id) FROM (
+                SELECT o.order_id FROM trade_order o
+                  JOIN trade_refund rf ON rf.order_id = o.order_id
+                 WHERE o.seller_id = #{userId} AND rf.status = 'refund_success'
+                   AND o.create_time &gt;= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                   <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>
+                UNION
+                SELECT d.order_id FROM trade_dispute d
+                  JOIN trade_order od ON od.order_id = d.order_id
+                 WHERE d.seller_id = #{userId} AND d.judge_decision IN ('buyer','partial')
+                   AND d.create_time &gt;= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                   <if test="tenantId != null">AND od.tenant_id = #{tenantId}</if>
+                UNION
+                SELECT o.order_id FROM trade_order o
+                 WHERE o.seller_id = #{userId} AND o.status = 'unshipped'
+                   AND o.create_time &gt;= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                   AND o.create_time &lt; DATE_SUB(NOW(), INTERVAL 72 HOUR)
+                   <if test="tenantId != null">AND o.tenant_id = #{tenantId}</if>
+            ) x) AS penalizedCount30d
+    </select>
+
+    <!-- 批量卖家好评率（推荐打分用） -->
+    <select id="selectSellerGoodRates" resultType="map">
+        SELECT r.reviewee_id AS sellerId,
+               COUNT(*) AS reviewCount,
+               ROUND(SUM(r.overall_score &gt;= 4) / COUNT(*), 2) AS goodRate
+        FROM trade_review r
+        WHERE r.role = 'buyer' AND r.status = 'normal'
+          AND r.reviewee_id IN
+        <foreach collection="sellerIds" item="sid" open="(" separator="," close=")">#{sid}</foreach>
+        <if test="tenantId != null">AND r.tenant_id = #{tenantId}</if>
+        GROUP BY r.reviewee_id
+    </select>
+
+    <!-- 附近推荐隐私开关（user_privacy 无行/开关 NULL 视为开启，由 Java 兜底默认值） -->
+    <select id="selectNearbyRecommendEnabled" resultType="Integer">
+        SELECT enable_nearby_recommend FROM user_privacy WHERE user_id = #{userId}
+    </select>
+
+    <!-- 默认收货地址城市（同城个性化） -->
+    <select id="selectDefaultCity" resultType="string">
+        SELECT city FROM user_address
+        WHERE user_id = #{userId} AND is_default = 1
+        ORDER BY address_id DESC
+        LIMIT 1
+    </select>
+
+    <!-- 隐私三开关（无行/NULL 列由 Service 兜底默认开启） -->
+    <select id="selectPrivacy" resultType="map">
+        SELECT allow_mobile_search AS allowMobileSearch,
+               allow_feed_by_stranger AS allowFeedByStranger,
+               enable_nearby_recommend AS enableNearbyRecommend
+        FROM user_privacy
+        WHERE user_id = #{userId}
+    </select>
+
+    <!-- 隐私设置保存：user_privacy 是 user_id 为主键的单行配置表，属于唯一合理的 upsert 场景。
+         null 字段用 COALESCE 保持原值（前端只改一个开关时不会把另外两个重置）。
+         退款表禁用 ON DUPLICATE KEY UPDATE 的理由是它与唯一索引守卫语义冲突，此处不适用。 -->
+    <insert id="upsertPrivacy">
+        INSERT INTO user_privacy (user_id, allow_mobile_search, allow_feed_by_stranger, enable_nearby_recommend)
+        VALUES (#{userId},
+                COALESCE(#{allowMobileSearch}, 1),
+                COALESCE(#{allowFeedByStranger}, 1),
+                COALESCE(#{enableNearbyRecommend}, 1))
+        ON DUPLICATE KEY UPDATE
+            allow_mobile_search = COALESCE(#{allowMobileSearch}, allow_mobile_search),
+            allow_feed_by_stranger = COALESCE(#{allowFeedByStranger}, allow_feed_by_stranger),
+            enable_nearby_recommend = COALESCE(#{enableNearbyRecommend}, enable_nearby_recommend)
+    </insert>
+
+    <!-- 引导查询：租户 ID 以 sys_user.tenant_id 为唯一权威来源（不信任任何调用方传入的租户标识）。 -->
+    <!-- 与 TradeOrderMapper.xml 的 selectUserTenantId 同名同义。 -->
+    <select id="selectUserTenantId" resultType="java.lang.Long">
+        SELECT tenant_id FROM sys_user WHERE user_id = #{userId} LIMIT 1
+    </select>
+
+    <!-- 举报处理：批量取用户摘要，含 status/del_flag 供存在性与封禁态判定 -->
+    <!-- 带 tenant_id：举报提交侧要比对租户，处置侧也要靠它判断归属，避免额外再查一次 -->
+    <select id="selectByIds" resultType="map">
+        SELECT user_id, nick_name, avatar, status, del_flag, user_type, tenant_id
+        FROM sys_user
+        WHERE user_id IN
+        <foreach collection="userIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <!-- 举报处置封号：与 trade 的 AdminMarketplaceMapper.updateUserStatus 并存，
+         避免 product → trade 的反向依赖成环 -->
+    <update id="updateStatus">
+        UPDATE sys_user SET status = #{status}, update_time = NOW()
+        WHERE user_id = #{userId} AND del_flag = '0'
+        <if test="tenantId != null">AND tenant_id = #{tenantId}</if>
+    </update>
+
+</mapper>
